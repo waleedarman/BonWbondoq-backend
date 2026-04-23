@@ -13,15 +13,17 @@ class SystemNotification extends Model
         'user_id',
         'type',
         'title',
-        'body',
-        'data',
+        'message',
+        'is_read',
+        'related_type',
+        'related_id',
         'read_at',
     ];
 
     protected function casts(): array
     {
         return [
-            'data' => 'array',
+            'is_read' => 'boolean',
             'read_at' => 'datetime',
         ];
     }

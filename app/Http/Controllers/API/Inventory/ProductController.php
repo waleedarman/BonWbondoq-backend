@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\API\Inventory;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Inventory\StoreProductRequest;
+use App\Http\Requests\Inventory\UpdateProductRequest;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
 {
@@ -41,18 +42,9 @@ class ProductController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreProductRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'sku' => ['nullable', 'string', 'max:255', 'unique:products,sku'],
-            'category' => ['required', Rule::in(['raw_coffee', 'roasted_coffee', 'packaging_material', 'beverage', 'supply', 'other'])],
-            'unit' => ['required', Rule::in(['kg', 'gram', 'piece', 'box', 'bottle', 'pack'])],
-            'quantity' => ['nullable', 'numeric', 'min:0'],
-            'minimum_quantity' => ['nullable', 'numeric', 'min:0'],
-            'branch_id' => ['required', 'exists:branches,id'],
-            'is_active' => ['sometimes', 'boolean'],
-        ]);
+        $data = $request->validated();
 
         $product = new Product();
         $product->forceFill($data)->save();
@@ -73,18 +65,9 @@ class ProductController extends Controller
         ]);
     }
 
-    public function update(Request $request, Product $product): JsonResponse
+    public function update(UpdateProductRequest $request, Product $product): JsonResponse
     {
-        $data = $request->validate([
-            'name' => ['sometimes', 'required', 'string', 'max:255'],
-            'sku' => ['nullable', 'string', 'max:255', Rule::unique('products', 'sku')->ignore($product->id)],
-            'category' => ['sometimes', 'required', Rule::in(['raw_coffee', 'roasted_coffee', 'packaging_material', 'beverage', 'supply', 'other'])],
-            'unit' => ['sometimes', 'required', Rule::in(['kg', 'gram', 'piece', 'box', 'bottle', 'pack'])],
-            'quantity' => ['sometimes', 'numeric', 'min:0'],
-            'minimum_quantity' => ['sometimes', 'numeric', 'min:0'],
-            'branch_id' => ['sometimes', 'required', 'exists:branches,id'],
-            'is_active' => ['sometimes', 'boolean'],
-        ]);
+        $data = $request->validated();
 
         $product->forceFill($data)->save();
 

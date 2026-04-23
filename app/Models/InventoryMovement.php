@@ -40,7 +40,8 @@ class InventoryMovement extends Model
         'movement_type',
         'reason',
         'quantity',
-        'reference',
+        'reference_type',
+        'reference_id',
         'notes',
     ];
 

@@ -3,13 +3,15 @@
 namespace App\Http\Controllers\API\Distribution;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Distribution\AssignDistributionShipmentRequest;
+use App\Http\Requests\Distribution\StoreDistributionShipmentRequest;
+use App\Http\Requests\Distribution\UpdateDistributionShipmentStatusRequest;
 use App\Models\DistributionShipment;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 class DistributionShipmentController extends Controller
 {
@@ -38,17 +40,9 @@ class DistributionShipmentController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreDistributionShipmentRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'shipment_code' => ['required', 'string', 'max:255', 'unique:distribution_shipments,shipment_code'],
-            'product_id' => ['required', 'exists:products,id'],
-            'quantity' => ['required', 'numeric', 'min:0.01'],
-            'destination' => ['required', 'string', 'max:255'],
-            'recipient_name' => ['required', 'string', 'max:255'],
-            'branch_id' => ['required', 'exists:branches,id'],
-            'notes' => ['nullable', 'string'],
-        ]);
+        $data = $request->validated();
 
         $shipment = new DistributionShipment();
         $shipment->forceFill($data + [
@@ -72,11 +66,9 @@ class DistributionShipmentController extends Controller
         ]);
     }
 
-    public function assignEmployee(Request $request, DistributionShipment $distributionShipment): JsonResponse
+    public function assignEmployee(AssignDistributionShipmentRequest $request, DistributionShipment $distributionShipment): JsonResponse
     {
-        $data = $request->validate([
-            'assigned_to' => ['required', 'exists:users,id'],
-        ]);
+        $data = $request->validated();
 
         $distributionShipment->forceFill([
             'assigned_to' => $data['assigned_to'],
@@ -91,12 +83,9 @@ class DistributionShipmentController extends Controller
         ]);
     }
 
-    public function updateStatus(Request $request, DistributionShipment $distributionShipment): JsonResponse
+    public function updateStatus(UpdateDistributionShipmentStatusRequest $request, DistributionShipment $distributionShipment): JsonResponse
     {
-        $data = $request->validate([
-            'status' => ['required', Rule::in(DistributionShipment::STATUSES)],
-            'notes' => ['nullable', 'string'],
-        ]);
+        $data = $request->validated();
 
         $distributionShipment->forceFill($this->timestampsForStatus($data['status']) + [
             'status' => $data['status'],

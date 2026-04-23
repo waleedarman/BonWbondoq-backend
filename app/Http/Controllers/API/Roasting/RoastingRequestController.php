@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\API\Roasting;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Roasting\AssignRoastingRequest;
+use App\Http\Requests\Roasting\StoreRoastingRequest;
+use App\Http\Requests\Roasting\UpdateRoastingStatusRequest;
 use App\Models\RoastingRequest;
 use App\Models\RoastingStatusLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 class RoastingRequestController extends Controller
 {
@@ -37,16 +39,9 @@ class RoastingRequestController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreRoastingRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'code' => ['required', 'string', 'max:255', 'unique:roasting_requests,code'],
-            'product_id' => ['required', 'exists:products,id'],
-            'quantity' => ['required', 'numeric', 'min:0.01'],
-            'priority' => ['required', Rule::in(RoastingRequest::PRIORITIES)],
-            'branch_id' => ['required', 'exists:branches,id'],
-            'notes' => ['nullable', 'string'],
-        ]);
+        $data = $request->validated();
 
         $roastingRequest = DB::transaction(function () use ($request, $data): RoastingRequest {
             $roastingRequest = new RoastingRequest();
@@ -76,12 +71,9 @@ class RoastingRequestController extends Controller
         ]);
     }
 
-    public function assignEmployee(Request $request, RoastingRequest $roastingRequest): JsonResponse
+    public function assignEmployee(AssignRoastingRequest $request, RoastingRequest $roastingRequest): JsonResponse
     {
-        $data = $request->validate([
-            'assigned_to' => ['required', 'exists:users,id'],
-            'note' => ['nullable', 'string'],
-        ]);
+        $data = $request->validated();
 
         $this->changeStatus($roastingRequest, RoastingRequest::STATUS_ASSIGNED, $request->user()?->id, $data['note'] ?? null, [
             'assigned_to' => $data['assigned_to'],
@@ -94,12 +86,9 @@ class RoastingRequestController extends Controller
         ]);
     }
 
-    public function updateStatus(Request $request, RoastingRequest $roastingRequest): JsonResponse
+    public function updateStatus(UpdateRoastingStatusRequest $request, RoastingRequest $roastingRequest): JsonResponse
     {
-        $data = $request->validate([
-            'status' => ['required', Rule::in(RoastingRequest::STATUSES)],
-            'note' => ['nullable', 'string'],
-        ]);
+        $data = $request->validated();
 
         $this->changeStatus($roastingRequest, $data['status'], $request->user()?->id, $data['note'] ?? null, $this->timestampsForStatus($data['status']));
 

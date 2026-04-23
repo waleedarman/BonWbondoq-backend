@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\API\Inventory;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Inventory\StoreInventoryMovementRequest;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 class InventoryMovementController extends Controller
 {
@@ -37,18 +37,9 @@ class InventoryMovementController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreInventoryMovementRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'product_id' => ['required', 'exists:products,id'],
-            'branch_id' => ['required', 'exists:branches,id'],
-            'movement_type' => ['required', Rule::in(InventoryMovement::TYPES)],
-            'quantity' => ['required', 'numeric', 'min:0.01'],
-            'reason' => ['required', Rule::in(InventoryMovement::REASONS)],
-            'reference_type' => ['nullable', 'string', 'max:255'],
-            'reference_id' => ['nullable', 'integer', 'min:1'],
-            'notes' => ['nullable', 'string'],
-        ]);
+        $data = $request->validated();
 
         $movement = DB::transaction(function () use ($request, $data): InventoryMovement {
             $product = Product::lockForUpdate()->findOrFail($data['product_id']);

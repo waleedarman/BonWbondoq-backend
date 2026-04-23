@@ -9,10 +9,9 @@ class RoastingStatusLog extends Model
 {
     protected $fillable = [
         'roasting_request_id',
+        'status',
         'changed_by',
-        'from_status',
-        'to_status',
-        'notes',
+        'note',
     ];
 
     public function roastingRequest(): BelongsTo

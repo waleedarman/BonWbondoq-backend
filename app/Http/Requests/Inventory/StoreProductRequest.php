@@ -1,3 +1,28 @@
 <?php
 
-// TODO: Add store product request validation later.
+namespace App\Http\Requests\Inventory;
+
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+class StoreProductRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    public function rules(): array
+    {
+        return [
+            'name' => ['required', 'string', 'max:255'],
+            'sku' => ['nullable', 'string', 'max:255', 'unique:products,sku'],
+            'category' => ['required', Rule::in(['raw_coffee', 'roasted_coffee', 'packaging_material', 'beverage', 'supply', 'other'])],
+            'unit' => ['required', Rule::in(['kg', 'gram', 'piece', 'box', 'bottle', 'pack'])],
+            'quantity' => ['nullable', 'numeric', 'min:0'],
+            'minimum_quantity' => ['nullable', 'numeric', 'min:0'],
+            'branch_id' => ['required', 'exists:branches,id'],
+            'is_active' => ['sometimes', 'boolean'],
+        ];
+    }
+}

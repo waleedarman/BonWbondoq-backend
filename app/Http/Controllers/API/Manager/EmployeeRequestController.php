@@ -3,12 +3,13 @@
 namespace App\Http\Controllers\API\Manager;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Manager\ApproveEmployeeRequest;
+use App\Http\Requests\Manager\RejectEmployeeRequest;
 use App\Models\EmployeeRequest;
 use App\Models\Role;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 class EmployeeRequestController extends Controller
 {
@@ -38,12 +39,9 @@ class EmployeeRequestController extends Controller
         ]);
     }
 
-    public function approve(Request $request, EmployeeRequest $employeeRequest): JsonResponse
+    public function approve(ApproveEmployeeRequest $request, EmployeeRequest $employeeRequest): JsonResponse
     {
-        $data = $request->validate([
-            'role_id' => ['required', 'exists:roles,id'],
-            'branch_id' => ['required', 'exists:branches,id'],
-        ]);
+        $data = $request->validated();
 
         if ($employeeRequest->status !== EmployeeRequest::STATUS_PENDING) {
             return response()->json([
@@ -85,11 +83,9 @@ class EmployeeRequestController extends Controller
         ]);
     }
 
-    public function reject(Request $request, EmployeeRequest $employeeRequest): JsonResponse
+    public function reject(RejectEmployeeRequest $request, EmployeeRequest $employeeRequest): JsonResponse
     {
-        $data = $request->validate([
-            'rejection_reason' => ['nullable', 'string', 'max:5000'],
-        ]);
+        $data = $request->validated();
 
         if ($employeeRequest->status !== EmployeeRequest::STATUS_PENDING) {
             return response()->json([

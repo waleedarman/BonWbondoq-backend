@@ -21,8 +21,6 @@ class EmployeeRequest extends Model
         'user_id',
         'reviewed_by',
         'status',
-        'requested_department',
-        'notes',
         'rejection_reason',
         'reviewed_at',
     ];

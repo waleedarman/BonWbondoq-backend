@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API\Manager;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Manager\AssignUserRoleRequest;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -50,12 +51,9 @@ class UserManagementController extends Controller
         ]);
     }
 
-    public function assignRole(Request $request, User $user): JsonResponse
+    public function assignRole(AssignUserRoleRequest $request, User $user): JsonResponse
     {
-        $data = $request->validate([
-            'role_id' => ['required', 'exists:roles,id'],
-            'branch_id' => ['nullable', 'exists:branches,id'],
-        ]);
+        $data = $request->validated();
 
         $user->forceFill([
             'role_id' => $data['role_id'],

@@ -37,25 +37,21 @@ class RoastingRequest extends Model
         'branch_id',
         'created_by',
         'assigned_to',
-        'batch_number',
+        'code',
         'priority',
         'status',
-        'requested_quantity',
-        'roasted_quantity',
+        'quantity',
         'notes',
         'started_at',
         'completed_at',
-        'cancelled_at',
     ];
 
     protected function casts(): array
     {
         return [
-            'requested_quantity' => 'decimal:2',
-            'roasted_quantity' => 'decimal:2',
+            'quantity' => 'decimal:2',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
-            'cancelled_at' => 'datetime',
         ];
     }
 

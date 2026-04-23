@@ -26,25 +26,24 @@ class DistributionShipment extends Model
         'branch_id',
         'created_by',
         'assigned_to',
-        'tracking_number',
+        'shipment_code',
         'status',
         'quantity',
         'destination',
         'recipient_name',
-        'recipient_phone',
         'notes',
+        'prepared_at',
         'transferred_at',
         'delivered_at',
-        'cancelled_at',
     ];
 
     protected function casts(): array
     {
         return [
             'quantity' => 'decimal:2',
+            'prepared_at' => 'datetime',
             'transferred_at' => 'datetime',
             'delivered_at' => 'datetime',
-            'cancelled_at' => 'datetime',
         ];
     }
 

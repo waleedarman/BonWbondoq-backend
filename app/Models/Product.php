@@ -12,7 +12,7 @@ class Product extends Model
         'branch_id',
         'name',
         'sku',
-        'description',
+        'category',
         'unit',
         'quantity',
         'minimum_quantity',
