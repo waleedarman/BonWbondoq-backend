@@ -6,6 +6,7 @@ use App\Models\DistributionShipment;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\Role;
+use App\Services\SystemNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,6 +23,7 @@ class TestingDistributionController extends TestingBaseController
         }
 
         $shipments = DistributionShipment::with(['product', 'creator', 'assignedEmployee', 'branch'])
+            ->where('branch_id', $this->currentBranchId())
             ->when($request->query('search'), function ($query, string $search): void {
                 $query->where(function ($nested) use ($search): void {
                     $nested->where('shipment_code', 'like', "%{$search}%")
@@ -49,7 +51,12 @@ class TestingDistributionController extends TestingBaseController
         }
 
         return view('testing.distribution.create', [
-            'products' => Product::with('branch')->where('is_active', true)->orderBy('name')->get(),
+            'products' => Product::with('branch')
+                ->where('branch_id', $this->currentBranchId())
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(),
+            'employees' => $this->usersByRole(Role::DISTRIBUTION_EMPLOYEE),
         ]);
     }
 
@@ -64,10 +71,17 @@ class TestingDistributionController extends TestingBaseController
             'quantity' => ['required', 'numeric', 'min:0.01'],
             'destination' => ['required', 'string', 'max:255'],
             'recipient_name' => ['required', 'string', 'max:255'],
+            'assigned_to' => ['required', 'exists:users,id'],
             'notes' => ['nullable', 'string', 'max:5000'],
         ]);
 
-        $product = Product::findOrFail($data['product_id']);
+        $product = Product::where('branch_id', $this->currentBranchId())->findOrFail($data['product_id']);
+
+        abort_unless(
+            $this->usersByRole(Role::DISTRIBUTION_EMPLOYEE)->contains('id', (int) $data['assigned_to']),
+            422,
+            'الموظف يجب أن يكون من نفس الفرع.'
+        );
 
         if ((float) $data['quantity'] > (float) $product->quantity) {
             return back()
@@ -81,15 +95,70 @@ class TestingDistributionController extends TestingBaseController
             'quantity' => $data['quantity'],
             'destination' => $data['destination'],
             'recipient_name' => $data['recipient_name'],
-            'status' => DistributionShipment::STATUS_PENDING,
+            'assigned_to' => $data['assigned_to'],
+            'status' => DistributionShipment::STATUS_READY_FOR_PICKUP,
             'created_by' => Auth::id(),
             'branch_id' => $product->branch_id,
+            'prepared_at' => now(),
             'notes' => $data['notes'] ?? null,
         ]);
 
         return redirect()
             ->route('testing.distribution.index')
-            ->with('status', 'تم إنشاء شحنة التوزيع.');
+            ->with('status', 'تم إنشاء شحنة التوزيع وتعيين الموزع مباشرة.');
+    }
+
+    public function updateDetails(Request $request, DistributionShipment $distributionShipment): RedirectResponse
+    {
+        if ($redirect = $this->requireRole([Role::MANAGER])) {
+            return $redirect;
+        }
+
+        $this->abortUnlessCurrentBranch($distributionShipment->branch_id);
+
+        $data = $request->validate([
+            'assigned_to' => ['required', 'exists:users,id'],
+            'destination' => ['required', 'string', 'max:255'],
+        ]);
+
+        abort_unless(
+            $this->usersByRole(Role::DISTRIBUTION_EMPLOYEE)->contains('id', (int) $data['assigned_to']),
+            422,
+            'الموظف يجب أن يكون من نفس الفرع.'
+        );
+
+        $updates = [
+            'assigned_to' => $data['assigned_to'],
+            'destination' => $data['destination'],
+        ];
+
+        if ($distributionShipment->status === DistributionShipment::STATUS_PENDING) {
+            $updates['status'] = DistributionShipment::STATUS_READY_FOR_PICKUP;
+            $updates['prepared_at'] = $distributionShipment->prepared_at ?? now();
+        }
+
+        $distributionShipment->update($updates);
+
+        return back()->with('status', 'تم تحديث الموزع والوجهة بنجاح.');
+    }
+
+    public function cancel(DistributionShipment $distributionShipment): RedirectResponse
+    {
+        if ($redirect = $this->requireRole([Role::MANAGER])) {
+            return $redirect;
+        }
+
+        $this->abortUnlessCurrentBranch($distributionShipment->branch_id);
+
+        if ($distributionShipment->status === DistributionShipment::STATUS_DELIVERED) {
+            return back()->withErrors(['shipment' => 'لا يمكن إلغاء شحنة تم تسليمها بالفعل.']);
+        }
+
+        $distributionShipment->update([
+            'status' => DistributionShipment::STATUS_CANCELLED,
+        ]);
+
+        return back()->with('status', 'تم إلغاء الشحنة.');
     }
 
     public function assign(Request $request, DistributionShipment $distributionShipment): RedirectResponse
@@ -101,6 +170,14 @@ class TestingDistributionController extends TestingBaseController
         $data = $request->validate([
             'assigned_to' => ['required', 'exists:users,id'],
         ]);
+
+        $this->abortUnlessCurrentBranch($distributionShipment->branch_id);
+
+        abort_unless(
+            $this->usersByRole(Role::DISTRIBUTION_EMPLOYEE)->contains('id', (int) $data['assigned_to']),
+            422,
+            'الموظف يجب أن يكون من نفس الفرع.'
+        );
 
         $distributionShipment->update([
             'assigned_to' => $data['assigned_to'],
@@ -121,6 +198,7 @@ class TestingDistributionController extends TestingBaseController
             'status' => ['required', Rule::in(DistributionShipment::STATUSES)],
         ]);
 
+        $this->abortUnlessCurrentBranch($distributionShipment->branch_id);
         $this->updateShipmentStatus($distributionShipment, $data['status']);
 
         return back()->with('status', 'تم تحديث حالة الشحنة.');
@@ -134,6 +212,7 @@ class TestingDistributionController extends TestingBaseController
 
         $shipments = DistributionShipment::with(['product', 'branch'])
             ->where('assigned_to', Auth::id())
+            ->where('branch_id', $this->currentBranchId())
             ->when($request->query('search'), function ($query, string $search): void {
                 $query->where(function ($nested) use ($search): void {
                     $nested->where('shipment_code', 'like', "%{$search}%")
@@ -163,6 +242,7 @@ class TestingDistributionController extends TestingBaseController
             return back()->withErrors(['shipment' => 'هذه الشحنة غير مخصصة لك.']);
         }
 
+        $this->abortUnlessCurrentBranch($distributionShipment->branch_id);
         $this->updateShipmentStatus($distributionShipment, DistributionShipment::STATUS_TRANSFERRED);
 
         return back()->with('status', 'تم نقل الشحنة.');
@@ -178,6 +258,7 @@ class TestingDistributionController extends TestingBaseController
             return back()->withErrors(['shipment' => 'هذه الشحنة غير مخصصة لك.']);
         }
 
+        $this->abortUnlessCurrentBranch($distributionShipment->branch_id);
         $this->updateShipmentStatus($distributionShipment, DistributionShipment::STATUS_DELIVERED);
 
         return back()->with('status', 'تم تسليم الشحنة وتحديث حركة المخزون.');
@@ -204,26 +285,48 @@ class TestingDistributionController extends TestingBaseController
             $distributionShipment->update($updates);
 
             if ($status === DistributionShipment::STATUS_DELIVERED && $oldStatus !== DistributionShipment::STATUS_DELIVERED) {
-                $product = Product::lockForUpdate()->find($distributionShipment->product_id);
-
-                if ($product) {
-                    $product->quantity = max(0, (float) $product->quantity - (float) $distributionShipment->quantity);
-                    $product->save();
-                }
-
-                InventoryMovement::create([
-                    'product_id' => $distributionShipment->product_id,
-                    'branch_id' => $distributionShipment->branch_id,
-                    'movement_type' => InventoryMovement::TYPE_OUT,
-                    'quantity' => $distributionShipment->quantity,
-                    'reason' => InventoryMovement::REASON_SHIPMENT,
-                    'reference_type' => DistributionShipment::class,
-                    'reference_id' => $distributionShipment->id,
-                    'performed_by' => Auth::id(),
-                    'notes' => 'تم تسليم الشحنة من واجهة الاختبار.',
-                ]);
+                $this->applyDeliveryEffects($distributionShipment);
+                app(SystemNotificationService::class)->notifyShipmentDelivered($distributionShipment);
             }
         });
+    }
+
+    private function applyDeliveryEffects(DistributionShipment $distributionShipment): void
+    {
+        $existingMovement = InventoryMovement::where('reference_type', DistributionShipment::class)
+            ->where('reference_id', $distributionShipment->id)
+            ->where('reason', InventoryMovement::REASON_SHIPMENT)
+            ->exists();
+
+        if ($existingMovement) {
+            return;
+        }
+
+        $product = Product::where('branch_id', Auth::user()->branch_id)
+            ->lockForUpdate()
+            ->find($distributionShipment->product_id);
+
+        if (! $product) {
+            return;
+        }
+
+        $previousQuantity = (float) $product->quantity;
+        $product->quantity = max(0, (float) $product->quantity - (float) $distributionShipment->quantity);
+        $product->save();
+
+        app(SystemNotificationService::class)->notifyStockThreshold($product, $previousQuantity);
+
+        InventoryMovement::create([
+            'product_id' => $distributionShipment->product_id,
+            'branch_id' => $distributionShipment->branch_id,
+            'movement_type' => InventoryMovement::TYPE_OUT,
+            'quantity' => $distributionShipment->quantity,
+            'reason' => InventoryMovement::REASON_SHIPMENT,
+            'reference_type' => DistributionShipment::class,
+            'reference_id' => $distributionShipment->id,
+            'performed_by' => Auth::id(),
+            'notes' => 'تم تسليم الشحنة من واجهة الاختبار.',
+        ]);
     }
 
     private function generateShipmentCode(): string

@@ -44,6 +44,41 @@
                 </div>
                 <div class="display-6 fw-bold">{{ $product->quantity }}</div>
                 <div class="muted">الوحدة: {{ $product->unit }} - الحد الأدنى: {{ $product->minimum_quantity }}</div>
+
+                <form method="POST" action="{{ route('testing.inventory.products.quantity.update', $product) }}" class="mt-3">
+                    @csrf
+                    <label class="form-label small">تعديل يدوي للكمية الحالية</label>
+                    <div class="d-flex gap-2 align-items-start">
+                        <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            name="quantity"
+                            value="{{ $product->quantity }}"
+                            class="form-control form-control-sm"
+                            required
+                        >
+                        <button class="btn btn-outline-light btn-sm">حفظ</button>
+                    </div>
+                    <input type="hidden" name="notes" value="Manual quantity update from inventory page for {{ $product->name }}">
+                </form>
+
+                <form method="POST" action="{{ route('testing.inventory.products.minimum-quantity.update', $product) }}" class="mt-3">
+                    @csrf
+                    <label class="form-label small">تعديل الحد الأدنى</label>
+                    <div class="d-flex gap-2 align-items-start">
+                        <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            name="minimum_quantity"
+                            value="{{ $product->minimum_quantity }}"
+                            class="form-control form-control-sm"
+                            required
+                        >
+                        <button class="btn btn-outline-light btn-sm">حفظ</button>
+                    </div>
+                </form>
             </div>
         </div>
     @empty

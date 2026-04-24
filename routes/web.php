@@ -47,6 +47,8 @@ Route::prefix('testing')->name('testing.')->group(function (): void {
         Route::get('/', [TestingInventoryController::class, 'index'])->name('index');
         Route::get('products/create', [TestingInventoryController::class, 'create'])->name('products.create');
         Route::post('products', [TestingInventoryController::class, 'store'])->name('products.store');
+        Route::post('products/{product}/quantity', [TestingInventoryController::class, 'updateQuantity'])->name('products.quantity.update');
+        Route::post('products/{product}/minimum-quantity', [TestingInventoryController::class, 'updateMinimumQuantity'])->name('products.minimum-quantity.update');
         Route::get('movements', [TestingInventoryController::class, 'movements'])->name('movements');
         Route::post('movements', [TestingInventoryController::class, 'storeMovement'])->name('movements.store');
     });
@@ -55,6 +57,8 @@ Route::prefix('testing')->name('testing.')->group(function (): void {
         Route::get('shipments', [TestingDistributionController::class, 'index'])->name('index');
         Route::get('shipments/create', [TestingDistributionController::class, 'create'])->name('create');
         Route::post('shipments', [TestingDistributionController::class, 'store'])->name('store');
+        Route::post('shipments/{distributionShipment}/update-details', [TestingDistributionController::class, 'updateDetails'])->name('update-details');
+        Route::post('shipments/{distributionShipment}/cancel', [TestingDistributionController::class, 'cancel'])->name('cancel');
         Route::post('shipments/{distributionShipment}/assign', [TestingDistributionController::class, 'assign'])->name('assign');
         Route::post('shipments/{distributionShipment}/status', [TestingDistributionController::class, 'updateStatus'])->name('status');
         Route::get('my-shipments', [TestingDistributionController::class, 'tasks'])->name('tasks');

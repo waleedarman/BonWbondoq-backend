@@ -20,7 +20,7 @@ class StoreRoastingRequest extends FormRequest
             'product_id' => ['required', 'exists:products,id'],
             'quantity' => ['required', 'numeric', 'min:0.01'],
             'priority' => ['required', Rule::in(RoastingRequest::PRIORITIES)],
-            'branch_id' => ['required', 'exists:branches,id'],
+            'branch_id' => ['nullable', 'exists:branches,id'],
             'status' => ['prohibited'],
             'created_by' => ['prohibited'],
             'assigned_to' => ['prohibited'],

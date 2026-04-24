@@ -23,7 +23,7 @@ class UpdateProductRequest extends FormRequest
             'unit' => ['sometimes', 'required', Rule::in(['kg', 'gram', 'piece', 'box', 'bottle', 'pack'])],
             'quantity' => ['sometimes', 'numeric', 'min:0'],
             'minimum_quantity' => ['sometimes', 'numeric', 'min:0'],
-            'branch_id' => ['sometimes', 'required', 'exists:branches,id'],
+            'branch_id' => ['prohibited'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

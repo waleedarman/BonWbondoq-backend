@@ -6,11 +6,11 @@ use App\Models\Branch;
 use App\Models\EmployeeRequest;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\SystemNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\View\View;
 
 class TestingAuthController extends TestingBaseController
@@ -22,10 +22,15 @@ class TestingAuthController extends TestingBaseController
 
     public function authenticate(Request $request): RedirectResponse
     {
-        $credentials = $request->validate([
+        $validated = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
         ]);
+
+        $credentials = [
+            'email' => strtolower(trim($validated['email'])),
+            'password' => $validated['password'],
+        ];
 
         if (! Auth::attempt($credentials)) {
             return back()
@@ -47,7 +52,7 @@ class TestingAuthController extends TestingBaseController
 
         return redirect()
             ->route($this->homeRouteFor($user))
-            ->with('status', 'أهلا وسهلا، تم تسجيل الدخول بنجاح.');
+            ->with('status', 'أهلًا وسهلًا، تم تسجيل الدخول بنجاح.');
     }
 
     public function logout(Request $request): RedirectResponse
@@ -83,6 +88,8 @@ class TestingAuthController extends TestingBaseController
             'terms.accepted' => 'يجب الموافقة على شروط الاستخدام الداخلي.',
         ]);
 
+        $data['email'] = strtolower(trim($data['email']));
+
         DB::transaction(function () use ($data): void {
             $managerRole = Role::firstOrCreate(
                 ['slug' => Role::MANAGER],
@@ -97,7 +104,7 @@ class TestingAuthController extends TestingBaseController
                 'phone' => $data['phone'],
                 'branch_id' => $data['branch_id'],
                 'role_id' => $isManager ? $managerRole->id : null,
-                'password' => Hash::make($data['password']),
+                'password' => $data['password'],
                 'is_active' => $isManager,
                 'approved_at' => $isManager ? now() : null,
             ]);
@@ -107,6 +114,8 @@ class TestingAuthController extends TestingBaseController
                     'user_id' => $user->id,
                     'status' => EmployeeRequest::STATUS_PENDING,
                 ]);
+
+                app(SystemNotificationService::class)->notifyNewEmployeeRequest($user);
             }
         });
 

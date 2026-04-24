@@ -13,7 +13,10 @@ class ProductController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Product::query()->with('branch')->latest();
+        $query = Product::query()
+            ->with('branch')
+            ->where('branch_id', $request->user()->branch_id)
+            ->latest();
 
         if ($request->filled('search')) {
             $search = $request->string('search');
@@ -27,8 +30,11 @@ class ProductController extends Controller
             $query->where('category', $request->string('category'));
         }
 
-        if ($request->filled('branch_id')) {
-            $query->where('branch_id', $request->integer('branch_id'));
+        if ($request->filled('branch_id') && $request->integer('branch_id') !== (int) $request->user()->branch_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You can only list products from your branch.',
+            ], 403);
         }
 
         if ($request->boolean('low_stock')) {
@@ -46,8 +52,15 @@ class ProductController extends Controller
     {
         $data = $request->validated();
 
+        if (isset($data['branch_id']) && (int) $data['branch_id'] !== $this->currentBranchId()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Products can only be created inside your branch.',
+            ], 422);
+        }
+
         $product = new Product();
-        $product->forceFill($data)->save();
+        $product->forceFill(array_merge($data, ['branch_id' => $request->user()->branch_id]))->save();
 
         return response()->json([
             'success' => true,
@@ -58,6 +71,8 @@ class ProductController extends Controller
 
     public function show(Product $product): JsonResponse
     {
+        $this->abortUnlessCurrentBranch($product->branch_id);
+
         return response()->json([
             'success' => true,
             'message' => 'Product fetched successfully.',
@@ -68,6 +83,7 @@ class ProductController extends Controller
     public function update(UpdateProductRequest $request, Product $product): JsonResponse
     {
         $data = $request->validated();
+        $this->abortUnlessCurrentBranch($product->branch_id);
 
         $product->forceFill($data)->save();
 

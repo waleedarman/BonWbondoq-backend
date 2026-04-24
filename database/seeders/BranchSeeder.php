@@ -9,13 +9,26 @@ class BranchSeeder extends Seeder
 {
     public function run(): void
     {
-        Branch::updateOrCreate(
-            ['code' => 'MAIN'],
+        $branches = [
             [
+                'code' => 'MAIN',
                 'name' => 'Main Branch',
-                'location' => 'Main roastery branch',
+                'location' => 'City Center Roastery',
                 'is_active' => true,
-            ]
-        );
+            ],
+            [
+                'code' => 'NORTH',
+                'name' => 'North Branch',
+                'location' => 'Northside Operations Hub',
+                'is_active' => true,
+            ],
+        ];
+
+        foreach ($branches as $branch) {
+            Branch::updateOrCreate(
+                ['code' => $branch['code']],
+                $branch
+            );
+        }
     }
 }

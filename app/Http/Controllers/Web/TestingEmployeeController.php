@@ -19,10 +19,12 @@ class TestingEmployeeController extends TestingBaseController
         return view('testing.employee.dashboard', [
             'roastingTasks' => RoastingRequest::with(['product', 'branch'])
                 ->where('assigned_to', Auth::id())
+                ->where('branch_id', Auth::user()->branch_id)
                 ->latest()
                 ->get(),
             'distributionTasks' => DistributionShipment::with(['product', 'branch'])
                 ->where('assigned_to', Auth::id())
+                ->where('branch_id', Auth::user()->branch_id)
                 ->latest()
                 ->get(),
         ]);

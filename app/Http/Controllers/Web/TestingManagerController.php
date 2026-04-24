@@ -21,8 +21,9 @@ class TestingManagerController extends TestingBaseController
             return $redirect;
         }
 
-        $completedRoasting = RoastingRequest::where('status', RoastingRequest::STATUS_COMPLETED)->count();
-        $incompleteRoasting = RoastingRequest::whereNotIn('status', [
+        $branchId = $this->currentBranchId();
+        $completedRoasting = RoastingRequest::where('branch_id', $branchId)->where('status', RoastingRequest::STATUS_COMPLETED)->count();
+        $incompleteRoasting = RoastingRequest::where('branch_id', $branchId)->whereNotIn('status', [
             RoastingRequest::STATUS_COMPLETED,
             RoastingRequest::STATUS_CANCELLED,
         ])->count();
@@ -31,16 +32,18 @@ class TestingManagerController extends TestingBaseController
             'stats' => [
                 'completed_roasting' => $completedRoasting,
                 'incomplete_roasting' => $incompleteRoasting,
-                'distribution_jobs' => DistributionShipment::count(),
-                'roasting_jobs' => RoastingRequest::count(),
-                'pending_requests' => EmployeeRequest::where('status', EmployeeRequest::STATUS_PENDING)->count(),
-                'low_stock' => Product::whereColumn('quantity', '<=', 'minimum_quantity')->count(),
+                'distribution_jobs' => DistributionShipment::where('branch_id', $branchId)->count(),
+                'roasting_jobs' => RoastingRequest::where('branch_id', $branchId)->count(),
+                'pending_requests' => EmployeeRequest::whereHas('user', fn ($query) => $query->where('branch_id', $branchId))->where('status', EmployeeRequest::STATUS_PENDING)->count(),
+                'low_stock' => Product::where('branch_id', $branchId)->whereColumn('quantity', '<=', 'minimum_quantity')->count(),
             ],
             'recentRoasting' => RoastingRequest::with(['product', 'assignedEmployee'])
+                ->where('branch_id', $branchId)
                 ->latest()
                 ->limit(6)
                 ->get(),
             'recentShipments' => DistributionShipment::with(['product', 'assignedEmployee'])
+                ->where('branch_id', $branchId)
                 ->latest()
                 ->limit(5)
                 ->get(),
@@ -55,6 +58,7 @@ class TestingManagerController extends TestingBaseController
 
         return view('testing.manager.approvals', [
             'requests' => EmployeeRequest::with(['user.branch', 'reviewer'])
+                ->whereHas('user', fn ($query) => $query->where('branch_id', $this->currentBranchId()))
                 ->where('status', EmployeeRequest::STATUS_PENDING)
                 ->latest()
                 ->get(),
@@ -75,6 +79,7 @@ class TestingManagerController extends TestingBaseController
         $data = $request->validate([
             'role_id' => ['required', 'exists:roles,id'],
         ]);
+        $this->abortUnlessCurrentBranch($employeeRequest->user?->branch_id);
 
         $role = Role::findOrFail($data['role_id']);
 
@@ -114,6 +119,7 @@ class TestingManagerController extends TestingBaseController
         $data = $request->validate([
             'rejection_reason' => ['nullable', 'string', 'max:1000'],
         ]);
+        $this->abortUnlessCurrentBranch($employeeRequest->user?->branch_id);
 
         if ($employeeRequest->status !== EmployeeRequest::STATUS_PENDING) {
             return back()->withErrors(['request' => 'يمكن رفض الطلبات المعلقة فقط.']);

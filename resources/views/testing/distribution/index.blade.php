@@ -2,7 +2,7 @@
 
 @section('title', 'شحنات التوزيع - بن وبندق')
 @section('page_title', 'شحنات التوزيع')
-@section('page_subtitle', 'متابعة الشحنات وتعيين موظف التوزيع وتحديث الحالة')
+@section('page_subtitle', 'تعديل الموزع والوجهة أو إلغاء الشحنة من نفس الشاشة')
 
 @section('content')
 <div class="content-card mb-4">
@@ -45,27 +45,32 @@
                 <div class="row g-2 small mb-3">
                     <div class="col-6">الوجهة: <span class="muted">{{ $shipment->destination }}</span></div>
                     <div class="col-6">المستلم: <span class="muted">{{ $shipment->recipient_name }}</span></div>
-                    <div class="col-6">الموظف: <span class="muted">{{ $shipment->assignedEmployee?->name ?? 'غير معين' }}</span></div>
+                    <div class="col-6">الموزع: <span class="muted">{{ $shipment->assignedEmployee?->name ?? 'غير معين' }}</span></div>
                     <div class="col-6">التاريخ: <span class="muted">{{ $shipment->created_at?->format('Y-m-d') }}</span></div>
                 </div>
-                <div class="d-flex flex-wrap gap-2">
-                    <form method="POST" action="{{ route('testing.distribution.assign', $shipment) }}" class="d-flex gap-2">
-                        @csrf
+
+                <form method="POST" action="{{ route('testing.distribution.update-details', $shipment) }}" class="row g-2 mb-2">
+                    @csrf
+                    <div class="col-md-5">
                         <select name="assigned_to" class="form-select form-select-sm" required>
-                            <option value="">موظف توزيع</option>
                             @foreach($employees as $employee)
                                 <option value="{{ $employee->id }}" @selected($shipment->assigned_to === $employee->id)>{{ $employee->name }}</option>
                             @endforeach
                         </select>
-                        <button class="btn btn-primary btn-sm">تعيين</button>
+                    </div>
+                    <div class="col-md-5">
+                        <input name="destination" value="{{ $shipment->destination }}" class="form-control form-control-sm" required>
+                    </div>
+                    <div class="col-md-2 d-grid">
+                        <button class="btn btn-primary btn-sm">تعديل</button>
+                    </div>
+                </form>
+
+                <div class="d-flex flex-wrap gap-2">
+                    <form method="POST" action="{{ route('testing.distribution.cancel', $shipment) }}">
+                        @csrf
+                        <button class="btn btn-outline-danger btn-sm" @disabled($shipment->status === \App\Models\DistributionShipment::STATUS_DELIVERED)>إلغاء الشحنة</button>
                     </form>
-                    @foreach(['transferred' => 'نقل', 'delivered' => 'تسليم'] as $status => $label)
-                        <form method="POST" action="{{ route('testing.distribution.status', $shipment) }}">
-                            @csrf
-                            <input type="hidden" name="status" value="{{ $status }}">
-                            <button class="btn btn-outline-light btn-sm">{{ $label }}</button>
-                        </form>
-                    @endforeach
                 </div>
             </div>
         </div>

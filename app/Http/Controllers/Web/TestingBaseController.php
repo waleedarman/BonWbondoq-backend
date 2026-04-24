@@ -53,9 +53,24 @@ abstract class TestingBaseController extends Controller
     protected function usersByRole(string $roleSlug)
     {
         return User::where('is_active', true)
+            ->where('branch_id', Auth::user()?->branch_id)
             ->whereHas('role', fn ($query) => $query->where('slug', $roleSlug))
             ->orderBy('name')
             ->get();
+    }
+
+    protected function currentBranchId(): int
+    {
+        $branchId = Auth::user()?->branch_id;
+
+        abort_if(! $branchId, 403, 'يجب أن يكون الحساب مرتبطا بفرع.');
+
+        return (int) $branchId;
+    }
+
+    protected function abortUnlessCurrentBranch(?int $branchId): void
+    {
+        abort_if((int) $branchId !== $this->currentBranchId(), 403, 'هذا السجل لا يتبع فرع حسابك.');
     }
 
     protected function logRoastingStatus(RoastingRequest $roastingRequest, string $status, ?string $note = null): void

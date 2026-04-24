@@ -19,10 +19,10 @@ class StoreDistributionShipmentRequest extends FormRequest
             'quantity' => ['required', 'numeric', 'min:0.01'],
             'destination' => ['required', 'string', 'max:255'],
             'recipient_name' => ['required', 'string', 'max:255'],
-            'branch_id' => ['required', 'exists:branches,id'],
+            'branch_id' => ['nullable', 'exists:branches,id'],
+            'assigned_to' => ['nullable', 'exists:users,id'],
             'status' => ['prohibited'],
             'created_by' => ['prohibited'],
-            'assigned_to' => ['prohibited'],
             'prepared_at' => ['prohibited'],
             'transferred_at' => ['prohibited'],
             'delivered_at' => ['prohibited'],
@@ -35,7 +35,6 @@ class StoreDistributionShipmentRequest extends FormRequest
         return [
             'status.prohibited' => 'New shipments are created as pending by the system.',
             'created_by.prohibited' => 'Shipment creator is resolved from the authenticated user.',
-            'assigned_to.prohibited' => 'Assign shipments through the assignment endpoint.',
         ];
     }
 }

@@ -17,7 +17,7 @@ class StoreInventoryMovementRequest extends FormRequest
     {
         return [
             'product_id' => ['required', 'exists:products,id'],
-            'branch_id' => ['required', 'exists:branches,id'],
+            'branch_id' => ['nullable', 'exists:branches,id'],
             'movement_type' => ['required', Rule::in(InventoryMovement::TYPES)],
             'quantity' => ['required', 'numeric', 'min:0.01'],
             'reason' => ['required', Rule::in(InventoryMovement::REASONS)],

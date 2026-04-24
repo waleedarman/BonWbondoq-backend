@@ -15,7 +15,7 @@ class ApproveEmployeeRequest extends FormRequest
     {
         return [
             'role_id' => ['required', 'exists:roles,id'],
-            'branch_id' => ['required', 'exists:branches,id'],
+            'branch_id' => ['nullable', 'exists:branches,id'],
         ];
     }
 }

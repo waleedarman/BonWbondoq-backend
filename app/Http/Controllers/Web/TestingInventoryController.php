@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\Role;
+use App\Services\SystemNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,6 +23,7 @@ class TestingInventoryController extends TestingBaseController
         }
 
         $products = Product::with('branch')
+            ->where('branch_id', $this->currentBranchId())
             ->when($request->query('search'), function ($query, string $search): void {
                 $query->where('name', 'like', "%{$search}%");
             })
@@ -45,7 +47,7 @@ class TestingInventoryController extends TestingBaseController
         }
 
         return view('testing.inventory.create', [
-            'branches' => \App\Models\Branch::where('is_active', true)->orderBy('name')->get(),
+            'branches' => \App\Models\Branch::where('id', $this->currentBranchId())->where('is_active', true)->orderBy('name')->get(),
             'categories' => ['raw_coffee', 'roasted_coffee', 'packaging_material', 'beverage', 'supply', 'other'],
             'units' => ['kg', 'gram', 'piece', 'box', 'bottle', 'pack'],
         ]);
@@ -66,10 +68,68 @@ class TestingInventoryController extends TestingBaseController
             'minimum_quantity' => ['required', 'numeric', 'min:0'],
             'branch_id' => ['required', 'exists:branches,id'],
         ]);
+        $this->abortUnlessCurrentBranch((int) $data['branch_id']);
 
         Product::create($data + ['is_active' => true]);
 
         return redirect()->route('testing.inventory.index')->with('status', 'تمت إضافة المنتج إلى المخزون.');
+    }
+
+    public function updateQuantity(Request $request, Product $product): RedirectResponse
+    {
+        if ($redirect = $this->requireRole([Role::INVENTORY_EMPLOYEE])) {
+            return $redirect;
+        }
+
+        $this->abortUnlessCurrentBranch($product->branch_id);
+
+        $data = $request->validate([
+            'quantity' => ['required', 'numeric', 'min:0'],
+            'notes' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        DB::transaction(function () use ($product, $data): void {
+            $lockedProduct = Product::where('branch_id', Auth::user()->branch_id)
+                ->lockForUpdate()
+                ->findOrFail($product->id);
+
+            $previousQuantity = (float) $lockedProduct->quantity;
+            $lockedProduct->quantity = (float) $data['quantity'];
+            $lockedProduct->save();
+
+            app(SystemNotificationService::class)->notifyStockThreshold($lockedProduct, $previousQuantity);
+
+            InventoryMovement::create([
+                'product_id' => $lockedProduct->id,
+                'branch_id' => $lockedProduct->branch_id,
+                'movement_type' => InventoryMovement::TYPE_ADJUSTMENT,
+                'quantity' => (float) $data['quantity'],
+                'reason' => InventoryMovement::REASON_MANUAL_ADJUSTMENT,
+                'performed_by' => Auth::id(),
+                'notes' => $data['notes'] ?? 'Manual quantity update from inventory dashboard.',
+            ]);
+        });
+
+        return back()->with('status', 'تم تعديل الكمية يدويا وتسجيل الحركة بنجاح.');
+    }
+
+    public function updateMinimumQuantity(Request $request, Product $product): RedirectResponse
+    {
+        if ($redirect = $this->requireRole([Role::INVENTORY_EMPLOYEE])) {
+            return $redirect;
+        }
+
+        $this->abortUnlessCurrentBranch($product->branch_id);
+
+        $data = $request->validate([
+            'minimum_quantity' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $product->update([
+            'minimum_quantity' => (float) $data['minimum_quantity'],
+        ]);
+
+        return back()->with('status', 'تم تعديل الحد الأدنى بنجاح.');
     }
 
     public function movements(Request $request): View|RedirectResponse
@@ -90,11 +150,12 @@ class TestingInventoryController extends TestingBaseController
                     ->whereMonth('created_at', substr($month, 5, 2));
             })
             ->latest()
+            ->where('branch_id', $this->currentBranchId())
             ->get();
 
         return view('testing.inventory.movements', [
             'movements' => $movements,
-            'products' => Product::where('is_active', true)->orderBy('name')->get(),
+            'products' => Product::where('branch_id', $this->currentBranchId())->where('is_active', true)->orderBy('name')->get(),
             'types' => InventoryMovement::TYPES,
             'reasons' => InventoryMovement::REASONS,
         ]);
@@ -115,7 +176,8 @@ class TestingInventoryController extends TestingBaseController
         ]);
 
         DB::transaction(function () use ($data): void {
-            $product = Product::lockForUpdate()->findOrFail($data['product_id']);
+            $product = Product::where('branch_id', Auth::user()->branch_id)->lockForUpdate()->findOrFail($data['product_id']);
+            $previousQuantity = (float) $product->quantity;
             $quantity = (float) $data['quantity'];
 
             if ($data['movement_type'] === InventoryMovement::TYPE_OUT && (float) $product->quantity < $quantity) {
@@ -133,6 +195,8 @@ class TestingInventoryController extends TestingBaseController
             }
 
             $product->save();
+
+            app(SystemNotificationService::class)->notifyStockThreshold($product, $previousQuantity);
 
             InventoryMovement::create([
                 'product_id' => $product->id,

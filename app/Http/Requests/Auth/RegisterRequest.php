@@ -17,9 +17,9 @@ class RegisterRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:50', 'unique:users,phone'],
+            'branch_id' => ['required', 'exists:branches,id'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
             'role_id' => ['prohibited'],
-            'branch_id' => ['prohibited'],
             'is_active' => ['prohibited'],
             'approved_at' => ['prohibited'],
             'approved_by' => ['prohibited'],
@@ -30,7 +30,6 @@ class RegisterRequest extends FormRequest
     {
         return [
             'role_id.prohibited' => 'Employee registration cannot assign roles directly.',
-            'branch_id.prohibited' => 'Employee registration cannot assign branches directly.',
             'is_active.prohibited' => 'Employee registration cannot activate accounts directly.',
         ];
     }

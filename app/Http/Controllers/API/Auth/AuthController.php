@@ -7,6 +7,7 @@ use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Models\EmployeeRequest;
 use App\Models\User;
+use App\Services\SystemNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,7 +28,7 @@ class AuthController extends Controller
                 'password' => Hash::make($data['password']),
                 'is_active' => false,
                 'role_id' => null,
-                'branch_id' => null,
+                'branch_id' => $data['branch_id'],
             ])->save();
 
             $employeeRequest = new EmployeeRequest();
@@ -35,6 +36,8 @@ class AuthController extends Controller
                 'user_id' => $user->id,
                 'status' => EmployeeRequest::STATUS_PENDING,
             ])->save();
+
+            app(SystemNotificationService::class)->notifyNewEmployeeRequest($user);
 
             return [
                 'user' => $user->load(['role', 'branch']),

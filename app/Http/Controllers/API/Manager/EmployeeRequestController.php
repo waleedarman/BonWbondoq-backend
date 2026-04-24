@@ -17,6 +17,7 @@ class EmployeeRequestController extends Controller
     {
         $query = EmployeeRequest::query()
             ->with(['user.role', 'user.branch', 'reviewer'])
+            ->whereHas('user', fn ($query) => $query->where('branch_id', $request->user()->branch_id))
             ->latest();
 
         if ($request->filled('status')) {
@@ -32,6 +33,8 @@ class EmployeeRequestController extends Controller
 
     public function show(EmployeeRequest $employeeRequest): JsonResponse
     {
+        $this->abortUnlessCurrentBranch($employeeRequest->user?->branch_id);
+
         return response()->json([
             'success' => true,
             'message' => 'Employee request fetched successfully.',
@@ -42,6 +45,14 @@ class EmployeeRequestController extends Controller
     public function approve(ApproveEmployeeRequest $request, EmployeeRequest $employeeRequest): JsonResponse
     {
         $data = $request->validated();
+        $this->abortUnlessCurrentBranch($employeeRequest->user?->branch_id);
+
+        if (isset($data['branch_id']) && (int) $data['branch_id'] !== $this->currentBranchId()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Employee requests can only be approved within your branch.',
+            ], 422);
+        }
 
         if ($employeeRequest->status !== EmployeeRequest::STATUS_PENDING) {
             return response()->json([
@@ -62,7 +73,7 @@ class EmployeeRequestController extends Controller
         DB::transaction(function () use ($request, $employeeRequest, $data): void {
             $employeeRequest->user->forceFill([
                 'role_id' => $data['role_id'],
-                'branch_id' => $data['branch_id'],
+                'branch_id' => $request->user()->branch_id,
                 'is_active' => true,
                 'approved_at' => now(),
                 'approved_by' => $request->user()->id,
@@ -86,6 +97,7 @@ class EmployeeRequestController extends Controller
     public function reject(RejectEmployeeRequest $request, EmployeeRequest $employeeRequest): JsonResponse
     {
         $data = $request->validated();
+        $this->abortUnlessCurrentBranch($employeeRequest->user?->branch_id);
 
         if ($employeeRequest->status !== EmployeeRequest::STATUS_PENDING) {
             return response()->json([

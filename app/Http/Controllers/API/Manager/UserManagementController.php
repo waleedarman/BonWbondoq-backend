@@ -12,7 +12,10 @@ class UserManagementController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = User::query()->with(['role', 'branch', 'approvedBy'])->latest();
+        $query = User::query()
+            ->with(['role', 'branch', 'approvedBy'])
+            ->where('branch_id', $request->user()->branch_id)
+            ->latest();
 
         if ($request->filled('search')) {
             $search = $request->string('search');
@@ -27,8 +30,11 @@ class UserManagementController extends Controller
             $query->where('role_id', $request->integer('role_id'));
         }
 
-        if ($request->filled('branch_id')) {
-            $query->where('branch_id', $request->integer('branch_id'));
+        if ($request->filled('branch_id') && $request->integer('branch_id') !== (int) $request->user()->branch_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You can only list users from your branch.',
+            ], 403);
         }
 
         if ($request->filled('is_active')) {
@@ -42,8 +48,10 @@ class UserManagementController extends Controller
         ]);
     }
 
-    public function show(User $user): JsonResponse
+    public function show(Request $request, User $user): JsonResponse
     {
+        $this->abortUnlessCurrentBranch($user->branch_id);
+
         return response()->json([
             'success' => true,
             'message' => 'User fetched successfully.',
@@ -54,10 +62,18 @@ class UserManagementController extends Controller
     public function assignRole(AssignUserRoleRequest $request, User $user): JsonResponse
     {
         $data = $request->validated();
+        $this->abortUnlessCurrentBranch($user->branch_id);
+
+        if (isset($data['branch_id']) && (int) $data['branch_id'] !== $this->currentBranchId()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Users can only be assigned inside your branch.',
+            ], 422);
+        }
 
         $user->forceFill([
             'role_id' => $data['role_id'],
-            'branch_id' => $data['branch_id'] ?? $user->branch_id,
+            'branch_id' => $request->user()->branch_id,
         ])->save();
 
         return response()->json([
@@ -69,6 +85,8 @@ class UserManagementController extends Controller
 
     public function activate(Request $request, User $user): JsonResponse
     {
+        $this->abortUnlessCurrentBranch($user->branch_id);
+
         $user->forceFill([
             'is_active' => true,
             'approved_at' => $user->approved_at ?? now(),
@@ -84,6 +102,8 @@ class UserManagementController extends Controller
 
     public function deactivate(User $user): JsonResponse
     {
+        $this->abortUnlessCurrentBranch($user->branch_id);
+
         $user->forceFill(['is_active' => false])->save();
 
         return response()->json([

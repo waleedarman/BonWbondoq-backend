@@ -21,7 +21,7 @@ class StoreProductRequest extends FormRequest
             'unit' => ['required', Rule::in(['kg', 'gram', 'piece', 'box', 'bottle', 'pack'])],
             'quantity' => ['nullable', 'numeric', 'min:0'],
             'minimum_quantity' => ['nullable', 'numeric', 'min:0'],
-            'branch_id' => ['required', 'exists:branches,id'],
+            'branch_id' => ['nullable', 'exists:branches,id'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

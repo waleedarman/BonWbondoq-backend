@@ -2,7 +2,7 @@
 
 @section('title', 'إنشاء شحنة - بن وبندق')
 @section('page_title', 'إنشاء شحنة توزيع')
-@section('page_subtitle', 'اختر منتجا بكمية متاحة وحدد الوجهة والمستلم')
+@section('page_subtitle', 'اختر المنتج وحدد الموزع والوجهة من نفس الشاشة')
 
 @section('content')
 <div class="content-card">
@@ -35,12 +35,21 @@
             <label class="form-label">اسم المستلم</label>
             <input name="recipient_name" value="{{ old('recipient_name') }}" class="form-control" required>
         </div>
+        <div class="col-md-6">
+            <label class="form-label">موظف التوزيع</label>
+            <select name="assigned_to" class="form-select" required>
+                <option value="">اختر موظف التوزيع</option>
+                @foreach($employees as $employee)
+                    <option value="{{ $employee->id }}" @selected((string) old('assigned_to') === (string) $employee->id)>{{ $employee->name }}</option>
+                @endforeach
+            </select>
+        </div>
         <div class="col-12">
             <label class="form-label">ملاحظات</label>
             <textarea name="notes" class="form-control" rows="3">{{ old('notes') }}</textarea>
         </div>
         <div class="col-12 d-flex gap-2">
-            <button class="btn btn-primary">إنشاء الشحنة</button>
+            <button class="btn btn-primary">إنشاء الشحنة وتعيين الموزع</button>
             <a href="{{ route('testing.distribution.index') }}" class="btn btn-outline-light">رجوع</a>
         </div>
     </form>

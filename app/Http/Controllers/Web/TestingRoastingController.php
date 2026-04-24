@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\RoastingRequest;
 use App\Models\Role;
+use App\Services\SystemNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class TestingRoastingController extends TestingBaseController
@@ -21,7 +24,9 @@ class TestingRoastingController extends TestingBaseController
         }
 
         $filter = $request->query('filter', 'active');
-        $query = RoastingRequest::with(['product', 'branch', 'assignedEmployee'])->latest();
+        $query = RoastingRequest::with(['product', 'branch', 'assignedEmployee'])
+            ->where('branch_id', $this->currentBranchId())
+            ->latest();
 
         match ($filter) {
             'pending' => $query->where('status', RoastingRequest::STATUS_PENDING),
@@ -46,7 +51,11 @@ class TestingRoastingController extends TestingBaseController
         }
 
         return view('testing.roasting.create', [
-            'products' => Product::with('branch')->where('is_active', true)->orderBy('name')->get(),
+            'products' => Product::with('branch')
+                ->where('branch_id', $this->currentBranchId())
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(),
             'employees' => $this->usersByRole(Role::ROASTING_EMPLOYEE),
             'priorities' => RoastingRequest::PRIORITIES,
         ]);
@@ -66,7 +75,7 @@ class TestingRoastingController extends TestingBaseController
             'notes' => ['nullable', 'string', 'max:5000'],
         ]);
 
-        $product = Product::findOrFail($data['product_id']);
+        $product = Product::where('branch_id', $this->currentBranchId())->findOrFail($data['product_id']);
         $status = $data['assigned_to'] ? RoastingRequest::STATUS_ASSIGNED : RoastingRequest::STATUS_PENDING;
 
         $roastingRequest = DB::transaction(function () use ($data, $product, $status): RoastingRequest {
@@ -89,7 +98,7 @@ class TestingRoastingController extends TestingBaseController
 
         return redirect()
             ->route('testing.roasting.show', $roastingRequest)
-            ->with('status', 'تم إنشاء عملية التحميص.');
+            ->with('status', 'تم إنشاء عملية التحميص بنجاح.');
     }
 
     public function show(RoastingRequest $roastingRequest): View|RedirectResponse
@@ -97,6 +106,8 @@ class TestingRoastingController extends TestingBaseController
         if ($redirect = $this->requireRole([Role::ROASTING_EMPLOYEE])) {
             return $redirect;
         }
+
+        $this->abortUnlessCurrentBranch($roastingRequest->branch_id);
 
         $user = Auth::user()->loadMissing('role');
 
@@ -120,6 +131,13 @@ class TestingRoastingController extends TestingBaseController
         $data = $request->validate([
             'assigned_to' => ['required', 'exists:users,id'],
         ]);
+
+        $this->abortUnlessCurrentBranch($roastingRequest->branch_id);
+        abort_unless(
+            $this->usersByRole(Role::ROASTING_EMPLOYEE)->contains('id', (int) $data['assigned_to']),
+            422,
+            'الموظف يجب أن يكون من نفس الفرع.'
+        );
 
         $roastingRequest->update([
             'assigned_to' => $data['assigned_to'],
@@ -148,6 +166,8 @@ class TestingRoastingController extends TestingBaseController
             'note' => ['nullable', 'string', 'max:5000'],
         ]);
 
+        $this->abortUnlessCurrentBranch($roastingRequest->branch_id);
+
         $updates = ['status' => $data['status']];
 
         if ($data['status'] === RoastingRequest::STATUS_IN_PROGRESS && ! $roastingRequest->started_at) {
@@ -158,8 +178,17 @@ class TestingRoastingController extends TestingBaseController
             $updates['completed_at'] = now();
         }
 
-        $roastingRequest->update($updates);
-        $this->logRoastingStatus($roastingRequest, $data['status'], $data['note'] ?? 'تم تحديث حالة التحميص.');
+        DB::transaction(function () use ($roastingRequest, $data, $updates): void {
+            $previousStatus = $roastingRequest->status;
+
+            $this->consumeStockIfNeeded($roastingRequest, $data['status']);
+            $roastingRequest->update($updates);
+            $this->logRoastingStatus($roastingRequest, $data['status'], $data['note'] ?? 'تم تحديث حالة التحميص.');
+
+            if ($data['status'] === RoastingRequest::STATUS_COMPLETED && $previousStatus !== RoastingRequest::STATUS_COMPLETED) {
+                app(SystemNotificationService::class)->notifyRoastingCompleted($roastingRequest);
+            }
+        });
 
         return back()->with('status', 'تم تحديث حالة عملية التحميص.');
     }
@@ -173,6 +202,7 @@ class TestingRoastingController extends TestingBaseController
         return view('testing.roasting.tasks', [
             'tasks' => RoastingRequest::with(['product', 'branch'])
                 ->where('assigned_to', Auth::id())
+                ->where('branch_id', $this->currentBranchId())
                 ->latest()
                 ->get(),
         ]);
@@ -188,12 +218,17 @@ class TestingRoastingController extends TestingBaseController
             return back()->withErrors(['task' => 'هذه المهمة غير مخصصة لك.']);
         }
 
-        $roastingRequest->update([
-            'status' => RoastingRequest::STATUS_IN_PROGRESS,
-            'started_at' => $roastingRequest->started_at ?? now(),
-        ]);
+        $this->abortUnlessCurrentBranch($roastingRequest->branch_id);
 
-        $this->logRoastingStatus($roastingRequest, RoastingRequest::STATUS_IN_PROGRESS, 'بدأ الموظف تنفيذ المهمة.');
+        DB::transaction(function () use ($roastingRequest): void {
+            $this->consumeStockIfNeeded($roastingRequest, RoastingRequest::STATUS_IN_PROGRESS);
+            $roastingRequest->update([
+                'status' => RoastingRequest::STATUS_IN_PROGRESS,
+                'started_at' => $roastingRequest->started_at ?? now(),
+            ]);
+
+            $this->logRoastingStatus($roastingRequest, RoastingRequest::STATUS_IN_PROGRESS, 'بدأ الموظف تنفيذ المهمة.');
+        });
 
         return back()->with('status', 'تم بدء مهمة التحميص.');
     }
@@ -208,12 +243,23 @@ class TestingRoastingController extends TestingBaseController
             return back()->withErrors(['task' => 'هذه المهمة غير مخصصة لك.']);
         }
 
-        $roastingRequest->update([
-            'status' => RoastingRequest::STATUS_COMPLETED,
-            'completed_at' => now(),
-        ]);
+        $this->abortUnlessCurrentBranch($roastingRequest->branch_id);
 
-        $this->logRoastingStatus($roastingRequest, RoastingRequest::STATUS_COMPLETED, 'أنهى الموظف مهمة التحميص.');
+        DB::transaction(function () use ($roastingRequest): void {
+            $previousStatus = $roastingRequest->status;
+
+            $this->consumeStockIfNeeded($roastingRequest, RoastingRequest::STATUS_COMPLETED);
+            $roastingRequest->update([
+                'status' => RoastingRequest::STATUS_COMPLETED,
+                'completed_at' => now(),
+            ]);
+
+            $this->logRoastingStatus($roastingRequest, RoastingRequest::STATUS_COMPLETED, 'أنهى الموظف مهمة التحميص.');
+
+            if ($previousStatus !== RoastingRequest::STATUS_COMPLETED) {
+                app(SystemNotificationService::class)->notifyRoastingCompleted($roastingRequest);
+            }
+        });
 
         return back()->with('status', 'تم إنهاء مهمة التحميص.');
     }
@@ -225,5 +271,51 @@ class TestingRoastingController extends TestingBaseController
         } while (RoastingRequest::where('code', $code)->exists());
 
         return $code;
+    }
+
+    private function consumeStockIfNeeded(RoastingRequest $roastingRequest, string $nextStatus): void
+    {
+        if (! in_array($nextStatus, [RoastingRequest::STATUS_IN_PROGRESS, RoastingRequest::STATUS_COMPLETED], true)) {
+            return;
+        }
+
+        $alreadyConsumed = InventoryMovement::where('reference_type', RoastingRequest::class)
+            ->where('reference_id', $roastingRequest->id)
+            ->where('reason', InventoryMovement::REASON_ROASTING_USAGE)
+            ->exists();
+
+        if ($alreadyConsumed) {
+            return;
+        }
+
+        $product = Product::where('branch_id', $roastingRequest->branch_id)
+            ->lockForUpdate()
+            ->findOrFail($roastingRequest->product_id);
+
+        $previousQuantity = (float) $product->quantity;
+        $quantity = (float) $roastingRequest->quantity;
+
+        if ((float) $product->quantity < $quantity) {
+            throw ValidationException::withMessages([
+                'quantity' => 'الكمية المطلوبة للتحميص أكبر من الكمية المتاحة في المخزون.',
+            ]);
+        }
+
+        $product->quantity = (float) $product->quantity - $quantity;
+        $product->save();
+
+        app(SystemNotificationService::class)->notifyStockThreshold($product, $previousQuantity);
+
+        InventoryMovement::create([
+            'product_id' => $product->id,
+            'branch_id' => $product->branch_id,
+            'movement_type' => InventoryMovement::TYPE_OUT,
+            'quantity' => $quantity,
+            'reason' => InventoryMovement::REASON_ROASTING_USAGE,
+            'reference_type' => RoastingRequest::class,
+            'reference_id' => $roastingRequest->id,
+            'performed_by' => Auth::id(),
+            'notes' => 'تم خصم الكمية للمباشرة في التحميص.',
+        ]);
     }
 }

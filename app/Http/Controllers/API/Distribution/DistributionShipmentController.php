@@ -9,6 +9,9 @@ use App\Http\Requests\Distribution\UpdateDistributionShipmentStatusRequest;
 use App\Models\DistributionShipment;
 use App\Models\InventoryMovement;
 use App\Models\Product;
+use App\Models\Role;
+use App\Models\User;
+use App\Services\SystemNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,14 +22,18 @@ class DistributionShipmentController extends Controller
     {
         $query = DistributionShipment::query()
             ->with(['product', 'creator', 'assignedEmployee', 'branch'])
+            ->where('branch_id', $request->user()->branch_id)
             ->latest();
 
         if ($request->filled('status')) {
             $query->where('status', $request->string('status'));
         }
 
-        if ($request->filled('branch_id')) {
-            $query->where('branch_id', $request->integer('branch_id'));
+        if ($request->filled('branch_id') && $request->integer('branch_id') !== (int) $request->user()->branch_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You can only list shipments from your branch.',
+            ], 403);
         }
 
         if ($request->filled('assigned_to')) {
@@ -44,11 +51,27 @@ class DistributionShipmentController extends Controller
     {
         $data = $request->validated();
 
+        if (isset($data['branch_id']) && (int) $data['branch_id'] !== $this->currentBranchId()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Shipments can only be created inside your branch.',
+            ], 422);
+        }
+
+        $product = Product::where('branch_id', $request->user()->branch_id)->findOrFail($data['product_id']);
+        $assignedTo = $data['assigned_to'] ?? null;
+
+        if ($assignedTo) {
+            $this->abortUnlessAssignableEmployee((int) $assignedTo, Role::DISTRIBUTION_EMPLOYEE);
+        }
+
         $shipment = new DistributionShipment();
-        $shipment->forceFill($data + [
-            'status' => DistributionShipment::STATUS_PENDING,
+        $shipment->forceFill(array_merge($data, [
+            'branch_id' => $product->branch_id,
+            'status' => $assignedTo ? DistributionShipment::STATUS_READY_FOR_PICKUP : DistributionShipment::STATUS_PENDING,
             'created_by' => $request->user()->id,
-        ])->save();
+            'prepared_at' => $assignedTo ? now() : null,
+        ]))->save();
 
         return response()->json([
             'success' => true,
@@ -59,6 +82,8 @@ class DistributionShipmentController extends Controller
 
     public function show(DistributionShipment $distributionShipment): JsonResponse
     {
+        $this->abortUnlessCurrentBranch($distributionShipment->branch_id);
+
         return response()->json([
             'success' => true,
             'message' => 'Distribution shipment fetched successfully.',
@@ -69,6 +94,8 @@ class DistributionShipmentController extends Controller
     public function assignEmployee(AssignDistributionShipmentRequest $request, DistributionShipment $distributionShipment): JsonResponse
     {
         $data = $request->validated();
+        $this->abortUnlessCurrentBranch($distributionShipment->branch_id);
+        $this->abortUnlessAssignableEmployee($data['assigned_to'], Role::DISTRIBUTION_EMPLOYEE);
 
         $distributionShipment->forceFill([
             'assigned_to' => $data['assigned_to'],
@@ -86,11 +113,21 @@ class DistributionShipmentController extends Controller
     public function updateStatus(UpdateDistributionShipmentStatusRequest $request, DistributionShipment $distributionShipment): JsonResponse
     {
         $data = $request->validated();
+        $this->abortUnlessCurrentBranch($distributionShipment->branch_id);
 
-        $distributionShipment->forceFill($this->timestampsForStatus($data['status']) + [
-            'status' => $data['status'],
-            'notes' => $data['notes'] ?? $distributionShipment->notes,
-        ])->save();
+        DB::transaction(function () use ($data, $distributionShipment, $request): void {
+            $previousStatus = $distributionShipment->status;
+
+            $distributionShipment->forceFill($this->timestampsForStatus($data['status']) + [
+                'status' => $data['status'],
+                'notes' => $data['notes'] ?? $distributionShipment->notes,
+            ])->save();
+
+            if ($data['status'] === DistributionShipment::STATUS_DELIVERED && $previousStatus !== DistributionShipment::STATUS_DELIVERED) {
+                $this->applyDeliveryEffects($distributionShipment, $request->user()->id);
+                app(SystemNotificationService::class)->notifyShipmentDelivered($distributionShipment);
+            }
+        });
 
         return response()->json([
             'success' => true,
@@ -104,6 +141,7 @@ class DistributionShipmentController extends Controller
         $query = DistributionShipment::query()
             ->with(['product', 'branch'])
             ->where('assigned_to', $request->user()->id)
+            ->where('branch_id', $request->user()->branch_id)
             ->latest();
 
         if ($request->filled('status')) {
@@ -125,6 +163,7 @@ class DistributionShipmentController extends Controller
                 'message' => 'You can only update shipments assigned to you.',
             ], 403);
         }
+        $this->abortUnlessCurrentBranch($distributionShipment->branch_id);
 
         $distributionShipment->forceFill([
             'status' => DistributionShipment::STATUS_TRANSFERRED,
@@ -146,32 +185,20 @@ class DistributionShipmentController extends Controller
                 'message' => 'You can only update shipments assigned to you.',
             ], 403);
         }
+        $this->abortUnlessCurrentBranch($distributionShipment->branch_id);
 
         DB::transaction(function () use ($request, $distributionShipment): void {
+            $previousStatus = $distributionShipment->status;
+
             $distributionShipment->forceFill([
                 'status' => DistributionShipment::STATUS_DELIVERED,
                 'delivered_at' => now(),
             ])->save();
 
-            $product = Product::lockForUpdate()->find($distributionShipment->product_id);
-
-            if ($product) {
-                $product->quantity = max(0, (float) $product->quantity - (float) $distributionShipment->quantity);
-                $product->save();
+            if ($previousStatus !== DistributionShipment::STATUS_DELIVERED) {
+                $this->applyDeliveryEffects($distributionShipment, $request->user()->id);
+                app(SystemNotificationService::class)->notifyShipmentDelivered($distributionShipment);
             }
-
-            $movement = new InventoryMovement();
-            $movement->forceFill([
-                'product_id' => $distributionShipment->product_id,
-                'branch_id' => $distributionShipment->branch_id,
-                'movement_type' => InventoryMovement::TYPE_OUT,
-                'quantity' => $distributionShipment->quantity,
-                'reason' => InventoryMovement::REASON_SHIPMENT,
-                'reference_type' => DistributionShipment::class,
-                'reference_id' => $distributionShipment->id,
-                'performed_by' => $request->user()->id,
-                'notes' => 'Inventory reduced after shipment delivery.',
-            ])->save();
         });
 
         return response()->json([
@@ -189,5 +216,55 @@ class DistributionShipmentController extends Controller
             DistributionShipment::STATUS_DELIVERED => ['delivered_at' => now()],
             default => [],
         };
+    }
+
+    private function abortUnlessAssignableEmployee(int $userId, string $roleSlug): void
+    {
+        $exists = User::where('id', $userId)
+            ->where('branch_id', $this->currentBranchId())
+            ->where('is_active', true)
+            ->whereHas('role', fn ($query) => $query->where('slug', $roleSlug))
+            ->exists();
+
+        abort_unless($exists, 422, 'Assigned employee must belong to your branch and role.');
+    }
+
+    private function applyDeliveryEffects(DistributionShipment $distributionShipment, int $performedBy): void
+    {
+        $existingMovement = InventoryMovement::where('reference_type', DistributionShipment::class)
+            ->where('reference_id', $distributionShipment->id)
+            ->where('reason', InventoryMovement::REASON_SHIPMENT)
+            ->exists();
+
+        if ($existingMovement) {
+            return;
+        }
+
+        $product = Product::where('branch_id', $distributionShipment->branch_id)
+            ->lockForUpdate()
+            ->find($distributionShipment->product_id);
+
+        if (! $product) {
+            return;
+        }
+
+        $previousQuantity = (float) $product->quantity;
+        $product->quantity = max(0, (float) $product->quantity - (float) $distributionShipment->quantity);
+        $product->save();
+
+        app(SystemNotificationService::class)->notifyStockThreshold($product, $previousQuantity);
+
+        $movement = new InventoryMovement();
+        $movement->forceFill([
+            'product_id' => $distributionShipment->product_id,
+            'branch_id' => $distributionShipment->branch_id,
+            'movement_type' => InventoryMovement::TYPE_OUT,
+            'quantity' => $distributionShipment->quantity,
+            'reason' => InventoryMovement::REASON_SHIPMENT,
+            'reference_type' => DistributionShipment::class,
+            'reference_id' => $distributionShipment->id,
+            'performed_by' => $performedBy,
+            'notes' => 'Inventory reduced after shipment delivery.',
+        ])->save();
     }
 }

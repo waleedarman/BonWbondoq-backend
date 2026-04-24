@@ -13,33 +13,35 @@ use Illuminate\Http\Request;
 
 class ReportController extends Controller
 {
-    public function dashboard(): JsonResponse
+    public function dashboard(Request $request): JsonResponse
     {
+        $branchId = $request->user()->branch_id;
+
         return response()->json([
             'success' => true,
             'message' => 'Dashboard report fetched successfully.',
             'data' => [
                 'users' => [
-                    'total' => User::count(),
-                    'active' => User::where('is_active', true)->count(),
-                    'inactive' => User::where('is_active', false)->count(),
+                    'total' => User::where('branch_id', $branchId)->count(),
+                    'active' => User::where('branch_id', $branchId)->where('is_active', true)->count(),
+                    'inactive' => User::where('branch_id', $branchId)->where('is_active', false)->count(),
                 ],
                 'inventory' => [
-                    'products' => Product::count(),
-                    'low_stock_products' => Product::whereColumn('quantity', '<=', 'minimum_quantity')->count(),
-                    'movements_today' => InventoryMovement::whereDate('created_at', today())->count(),
+                    'products' => Product::where('branch_id', $branchId)->count(),
+                    'low_stock_products' => Product::where('branch_id', $branchId)->whereColumn('quantity', '<=', 'minimum_quantity')->count(),
+                    'movements_today' => InventoryMovement::where('branch_id', $branchId)->whereDate('created_at', today())->count(),
                 ],
                 'roasting' => [
-                    'total' => RoastingRequest::count(),
-                    'pending' => RoastingRequest::where('status', RoastingRequest::STATUS_PENDING)->count(),
-                    'in_progress' => RoastingRequest::where('status', RoastingRequest::STATUS_IN_PROGRESS)->count(),
-                    'completed' => RoastingRequest::where('status', RoastingRequest::STATUS_COMPLETED)->count(),
+                    'total' => RoastingRequest::where('branch_id', $branchId)->count(),
+                    'pending' => RoastingRequest::where('branch_id', $branchId)->where('status', RoastingRequest::STATUS_PENDING)->count(),
+                    'in_progress' => RoastingRequest::where('branch_id', $branchId)->where('status', RoastingRequest::STATUS_IN_PROGRESS)->count(),
+                    'completed' => RoastingRequest::where('branch_id', $branchId)->where('status', RoastingRequest::STATUS_COMPLETED)->count(),
                 ],
                 'distribution' => [
-                    'total' => DistributionShipment::count(),
-                    'pending' => DistributionShipment::where('status', DistributionShipment::STATUS_PENDING)->count(),
-                    'transferred' => DistributionShipment::where('status', DistributionShipment::STATUS_TRANSFERRED)->count(),
-                    'delivered' => DistributionShipment::where('status', DistributionShipment::STATUS_DELIVERED)->count(),
+                    'total' => DistributionShipment::where('branch_id', $branchId)->count(),
+                    'pending' => DistributionShipment::where('branch_id', $branchId)->where('status', DistributionShipment::STATUS_PENDING)->count(),
+                    'transferred' => DistributionShipment::where('branch_id', $branchId)->where('status', DistributionShipment::STATUS_TRANSFERRED)->count(),
+                    'delivered' => DistributionShipment::where('branch_id', $branchId)->where('status', DistributionShipment::STATUS_DELIVERED)->count(),
                 ],
             ],
         ]);
@@ -50,9 +52,11 @@ class ReportController extends Controller
         $from = $request->date('from')?->startOfDay();
         $to = $request->date('to')?->endOfDay();
 
-        $roasting = RoastingRequest::query();
-        $shipments = DistributionShipment::query();
-        $movements = InventoryMovement::query();
+        $branchId = $request->user()->branch_id;
+
+        $roasting = RoastingRequest::where('branch_id', $branchId);
+        $shipments = DistributionShipment::where('branch_id', $branchId);
+        $movements = InventoryMovement::where('branch_id', $branchId);
 
         if ($from) {
             $roasting->where('created_at', '>=', $from);
