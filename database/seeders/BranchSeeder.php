@@ -12,14 +12,20 @@ class BranchSeeder extends Seeder
         $branches = [
             [
                 'code' => 'MAIN',
-                'name' => 'Main Branch',
-                'location' => 'City Center Roastery',
+                'name' => 'طولكرم وسط البلد',
+                'location' => 'وسط البلد',
                 'is_active' => true,
             ],
             [
                 'code' => 'NORTH',
-                'name' => 'North Branch',
-                'location' => 'Northside Operations Hub',
+                'name' => 'طولكرم - شارع نابلس',
+                'location' => 'شارع نابلس',
+                'is_active' => true,
+            ],
+            [
+                'code' => 'ATTIL',
+                'name' => 'طولكرم- عتيل',
+                'location' => 'عتيل',
                 'is_active' => true,
             ],
         ];

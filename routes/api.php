@@ -7,6 +7,7 @@ use App\Http\Controllers\API\Distribution\DistributionShipmentController;
 use App\Http\Controllers\API\Inventory\InventoryMovementController;
 use App\Http\Controllers\API\Inventory\ProductController;
 use App\Http\Controllers\API\Manager\EmployeeRequestController;
+use App\Http\Controllers\API\Manager\RoleController;
 use App\Http\Controllers\API\Manager\ReportController;
 use App\Http\Controllers\API\Manager\UserManagementController;
 use App\Http\Controllers\API\Roasting\RoastingRequestController;
@@ -27,6 +28,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
     });
 
     Route::prefix('manager')->middleware('role:manager')->name('manager.')->group(function (): void {
+        Route::get('roles', [RoleController::class, 'index'])->name('roles.index');
+
         Route::prefix('employee-requests')->name('employee-requests.')->group(function (): void {
             Route::get('/', [EmployeeRequestController::class, 'index'])->name('index');
             Route::get('{employeeRequest}', [EmployeeRequestController::class, 'show'])->name('show');
@@ -36,6 +39,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
 
         Route::prefix('users')->name('users.')->group(function (): void {
             Route::get('/', [UserManagementController::class, 'index'])->name('index');
+            Route::post('/', [UserManagementController::class, 'store'])->name('store');
             Route::get('{user}', [UserManagementController::class, 'show'])->name('show');
             Route::patch('{user}/assign-role', [UserManagementController::class, 'assignRole'])->name('assign-role');
             Route::patch('{user}/activate', [UserManagementController::class, 'activate'])->name('activate');
@@ -73,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
 
         Route::middleware('role:roasting_employee')->group(function (): void {
             Route::get('my-tasks', [RoastingRequestController::class, 'myTasks'])->name('my-tasks.index');
+            Route::get('my-tasks/{roastingRequest}', [RoastingRequestController::class, 'showMyTask'])->name('my-tasks.show');
             Route::post('my-tasks/{roastingRequest}/start', [RoastingRequestController::class, 'startTask'])->name('my-tasks.start');
             Route::post('my-tasks/{roastingRequest}/complete', [RoastingRequestController::class, 'completeTask'])->name('my-tasks.complete');
         });
@@ -89,6 +94,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
 
         Route::middleware('role:distribution_employee')->group(function (): void {
             Route::get('my-shipments', [DistributionShipmentController::class, 'myShipments'])->name('my-shipments.index');
+            Route::get('my-shipments/{distributionShipment}', [DistributionShipmentController::class, 'showMyShipment'])->name('my-shipments.show');
             Route::post('my-shipments/{distributionShipment}/transfer', [DistributionShipmentController::class, 'markTransferred'])->name('my-shipments.transfer');
             Route::post('my-shipments/{distributionShipment}/deliver', [DistributionShipmentController::class, 'markDelivered'])->name('my-shipments.deliver');
         });

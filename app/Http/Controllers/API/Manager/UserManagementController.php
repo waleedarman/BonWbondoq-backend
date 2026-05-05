@@ -4,9 +4,12 @@ namespace App\Http\Controllers\API\Manager;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Manager\AssignUserRoleRequest;
+use App\Http\Requests\Manager\StoreManagedUserRequest;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class UserManagementController extends Controller
 {
@@ -46,6 +49,39 @@ class UserManagementController extends Controller
             'message' => 'Users fetched successfully.',
             'data' => $query->paginate($request->integer('per_page', 15)),
         ]);
+    }
+
+    public function store(StoreManagedUserRequest $request): JsonResponse
+    {
+        $data = $request->validated();
+
+        if (isset($data['branch_id']) && (int) $data['branch_id'] !== $this->currentBranchId()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Users can only be created inside your branch.',
+            ], 422);
+        }
+
+        $role = Role::findOrFail($data['role_id']);
+
+        $user = new User();
+        $user->forceFill([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'phone' => $data['phone'] ?? null,
+            'password' => Hash::make($data['password']),
+            'role_id' => $role->id,
+            'branch_id' => $request->user()->branch_id,
+            'is_active' => true,
+            'approved_at' => now(),
+            'approved_by' => $request->user()->id,
+        ])->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'User created successfully.',
+            'data' => $user->load(['role', 'branch', 'approvedBy']),
+        ], 201);
     }
 
     public function show(Request $request, User $user): JsonResponse

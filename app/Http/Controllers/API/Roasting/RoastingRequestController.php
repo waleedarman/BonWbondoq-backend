@@ -143,6 +143,23 @@ class RoastingRequestController extends Controller
         ]);
     }
 
+    public function showMyTask(Request $request, RoastingRequest $roastingRequest): JsonResponse
+    {
+        if ($roastingRequest->assigned_to !== $request->user()->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You can only view tasks assigned to you.',
+            ], 403);
+        }
+        $this->abortUnlessCurrentBranch($roastingRequest->branch_id);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Assigned roasting task fetched successfully.',
+            'data' => $roastingRequest->load(['product', 'branch', 'statusLogs.changer']),
+        ]);
+    }
+
     public function startTask(Request $request, RoastingRequest $roastingRequest): JsonResponse
     {
         if ($roastingRequest->assigned_to !== $request->user()->id) {

@@ -155,6 +155,23 @@ class DistributionShipmentController extends Controller
         ]);
     }
 
+    public function showMyShipment(Request $request, DistributionShipment $distributionShipment): JsonResponse
+    {
+        if ($distributionShipment->assigned_to !== $request->user()->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You can only view shipments assigned to you.',
+            ], 403);
+        }
+        $this->abortUnlessCurrentBranch($distributionShipment->branch_id);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Assigned shipment fetched successfully.',
+            'data' => $distributionShipment->load(['product', 'branch']),
+        ]);
+    }
+
     public function markTransferred(Request $request, DistributionShipment $distributionShipment): JsonResponse
     {
         if ($distributionShipment->assigned_to !== $request->user()->id) {

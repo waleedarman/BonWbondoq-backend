@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
+use App\Models\Branch;
 use App\Models\EmployeeRequest;
 use App\Models\User;
 use App\Services\SystemNotificationService;
@@ -18,8 +19,11 @@ class AuthController extends Controller
     public function register(RegisterRequest $request): JsonResponse
     {
         $data = $request->validated();
+        $branchId = $data['branch_id'] ?? Branch::query()
+            ->where('code', $data['branch_code'])
+            ->value('id');
 
-        $result = DB::transaction(function () use ($data): array {
+        $result = DB::transaction(function () use ($data, $branchId): array {
             $user = new User();
             $user->forceFill([
                 'name' => $data['name'],
@@ -28,7 +32,7 @@ class AuthController extends Controller
                 'password' => Hash::make($data['password']),
                 'is_active' => false,
                 'role_id' => null,
-                'branch_id' => $data['branch_id'],
+                'branch_id' => $branchId,
             ])->save();
 
             $employeeRequest = new EmployeeRequest();

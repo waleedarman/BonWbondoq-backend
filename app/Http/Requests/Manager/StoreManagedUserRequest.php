@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Http\Requests\Auth;
+namespace App\Http\Requests\Manager;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class RegisterRequest extends FormRequest
+class StoreManagedUserRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -17,10 +17,9 @@ class RegisterRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:50', 'unique:users,phone'],
-            'branch_id' => ['nullable', 'integer', 'required_without:branch_code', 'exists:branches,id'],
-            'branch_code' => ['nullable', 'string', 'required_without:branch_id', 'exists:branches,code'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'role_id' => ['prohibited'],
+            'role_id' => ['required', 'exists:roles,id'],
+            'branch_id' => ['nullable', 'exists:branches,id'],
             'is_active' => ['prohibited'],
             'approved_at' => ['prohibited'],
             'approved_by' => ['prohibited'],
@@ -30,10 +29,8 @@ class RegisterRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'branch_id.required_without' => 'اختيار الفرع مطلوب.',
-            'branch_code.required_without' => 'اختيار الفرع مطلوب.',
-            'role_id.prohibited' => 'Employee registration cannot assign roles directly.',
-            'is_active.prohibited' => 'Employee registration cannot activate accounts directly.',
+            'is_active.prohibited' => 'Managed users are activated by the system after creation.',
+            'approved_at.prohibited' => 'Approval metadata is resolved from the authenticated manager.',
         ];
     }
 }
