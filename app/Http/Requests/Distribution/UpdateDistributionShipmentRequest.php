@@ -4,7 +4,7 @@ namespace App\Http\Requests\Distribution;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class StoreDistributionShipmentRequest extends FormRequest
+class UpdateDistributionShipmentRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -14,14 +14,14 @@ class StoreDistributionShipmentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'shipment_code' => ['required', 'string', 'max:255', 'unique:distribution_shipments,shipment_code'],
             'product_id' => ['required', 'exists:products,id'],
             'quantity' => ['required', 'numeric', 'min:0.01'],
             'destination' => ['required', 'string', 'max:255'],
             'recipient_name' => ['required', 'string', 'max:255'],
-            'branch_id' => ['nullable', 'exists:branches,id'],
             'assigned_to' => ['nullable', 'exists:users,id'],
             'inventory_assigned_to' => ['nullable', 'exists:users,id'],
+            'shipment_code' => ['prohibited'],
+            'branch_id' => ['prohibited'],
             'status' => ['prohibited'],
             'created_by' => ['prohibited'],
             'prepared_at' => ['prohibited'],
@@ -34,8 +34,10 @@ class StoreDistributionShipmentRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'status.prohibited' => 'New shipments are created as pending by the system.',
-            'created_by.prohibited' => 'Shipment creator is resolved from the authenticated user.',
+            'shipment_code.prohibited' => 'Shipment code cannot be changed after creation.',
+            'branch_id.prohibited' => 'Shipment branch cannot be changed after creation.',
+            'status.prohibited' => 'Use the shipment status endpoint to change shipment status.',
+            'created_by.prohibited' => 'Shipment creator cannot be changed.',
         ];
     }
 }

@@ -6,7 +6,7 @@ use App\Models\RoastingRequest;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class StoreRoastingRequest extends FormRequest
+class UpdateRoastingRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -16,26 +16,28 @@ class StoreRoastingRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'code' => ['required', 'string', 'max:255', 'unique:roasting_requests,code'],
             'product_id' => ['required', 'exists:products,id'],
             'quantity' => ['required', 'numeric', 'min:0.01'],
             'priority' => ['required', Rule::in(RoastingRequest::PRIORITIES)],
-            'branch_id' => ['nullable', 'exists:branches,id'],
+            'scheduled_start_at' => ['nullable', 'date'],
+            'notes' => ['nullable', 'string'],
+            'code' => ['prohibited'],
+            'branch_id' => ['prohibited'],
             'status' => ['prohibited'],
             'created_by' => ['prohibited'],
             'assigned_to' => ['prohibited'],
-            'scheduled_start_at' => ['nullable', 'date'],
             'started_at' => ['prohibited'],
             'completed_at' => ['prohibited'],
-            'notes' => ['nullable', 'string'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'status.prohibited' => 'New roasting requests are created as pending by the system.',
-            'created_by.prohibited' => 'Roasting request creator is resolved from the authenticated user.',
+            'code.prohibited' => 'Roasting request code cannot be changed.',
+            'branch_id.prohibited' => 'Roasting request branch cannot be changed.',
+            'status.prohibited' => 'Update roasting status through the status endpoint.',
+            'created_by.prohibited' => 'Roasting request creator cannot be changed.',
             'assigned_to.prohibited' => 'Assign roasting requests through the assignment endpoint.',
         ];
     }

@@ -15,6 +15,13 @@ return new class extends Migration
             $table->enum('category', [
                 'raw_coffee',
                 'roasted_coffee',
+                'ground_coffee',
+                'raw_nuts',
+                'roasted_nuts',
+                'seasoned_nuts',
+                'raw_product',
+                'processed_product',
+                'packaged_product',
                 'packaging_material',
                 'beverage',
                 'supply',

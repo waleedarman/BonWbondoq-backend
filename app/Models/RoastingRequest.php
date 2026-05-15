@@ -42,6 +42,7 @@ class RoastingRequest extends Model
         'status',
         'quantity',
         'notes',
+        'scheduled_start_at',
         'started_at',
         'completed_at',
     ];
@@ -50,6 +51,7 @@ class RoastingRequest extends Model
     {
         return [
             'quantity' => 'decimal:2',
+            'scheduled_start_at' => 'datetime',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
         ];

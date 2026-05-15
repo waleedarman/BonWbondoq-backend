@@ -32,6 +32,12 @@ class TestingAuthController extends TestingBaseController
             'password' => $validated['password'],
         ];
 
+        if (! User::where('email', $credentials['email'])->exists()) {
+            return back()
+                ->withErrors(['email' => 'البريد الإلكتروني غير موجود أو غير مسجل.'])
+                ->onlyInput('email');
+        }
+
         if (! Auth::attempt($credentials)) {
             return back()
                 ->withErrors(['email' => 'بيانات الدخول غير صحيحة.'])

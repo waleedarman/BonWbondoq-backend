@@ -8,12 +8,16 @@ use App\Http\Controllers\API\Inventory\InventoryMovementController;
 use App\Http\Controllers\API\Inventory\ProductController;
 use App\Http\Controllers\API\Manager\EmployeeRequestController;
 use App\Http\Controllers\API\Manager\ReportController;
+use App\Http\Controllers\API\Manager\RoleController;
 use App\Http\Controllers\API\Manager\UserManagementController;
 use App\Http\Controllers\API\Roasting\RoastingRequestController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('register', [AuthController::class, 'register'])->name('auth.register');
 Route::post('login', [AuthController::class, 'login'])->name('auth.login');
+Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->name('auth.forgot-password');
+Route::post('verify-reset-code', [AuthController::class, 'verifyResetCode'])->name('auth.verify-reset-code');
+Route::post('reset-password', [AuthController::class, 'resetPassword'])->name('auth.reset-password');
 Route::get('branches', [BranchController::class, 'index'])->name('branches.index');
 
 Route::middleware('auth:sanctum')->group(function (): void {
@@ -27,6 +31,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
     });
 
     Route::prefix('manager')->middleware('role:manager')->name('manager.')->group(function (): void {
+        Route::get('roles', [RoleController::class, 'index'])->name('roles.index');
+
         Route::prefix('employee-requests')->name('employee-requests.')->group(function (): void {
             Route::get('/', [EmployeeRequestController::class, 'index'])->name('index');
             Route::get('{employeeRequest}', [EmployeeRequestController::class, 'show'])->name('show');
@@ -67,15 +73,16 @@ Route::middleware('auth:sanctum')->group(function (): void {
             Route::get('requests', [RoastingRequestController::class, 'index'])->name('requests.index');
             Route::post('requests', [RoastingRequestController::class, 'store'])->name('requests.store');
             Route::get('requests/{roastingRequest}', [RoastingRequestController::class, 'show'])->name('requests.show');
+            Route::match(['put', 'patch'], 'requests/{roastingRequest}', [RoastingRequestController::class, 'update'])->name('requests.update');
+            Route::delete('requests/{roastingRequest}', [RoastingRequestController::class, 'destroy'])->name('requests.destroy');
             Route::patch('requests/{roastingRequest}/assign', [RoastingRequestController::class, 'assignEmployee'])->name('requests.assign');
             Route::patch('requests/{roastingRequest}/status', [RoastingRequestController::class, 'updateStatus'])->name('requests.status');
         });
 
-        Route::middleware('role:roasting_employee')->group(function (): void {
-            Route::get('my-tasks', [RoastingRequestController::class, 'myTasks'])->name('my-tasks.index');
-            Route::post('my-tasks/{roastingRequest}/start', [RoastingRequestController::class, 'startTask'])->name('my-tasks.start');
-            Route::post('my-tasks/{roastingRequest}/complete', [RoastingRequestController::class, 'completeTask'])->name('my-tasks.complete');
-        });
+        Route::get('my-tasks', [RoastingRequestController::class, 'myTasks'])->name('my-tasks.index');
+        Route::get('my-tasks/{roastingRequest}', [RoastingRequestController::class, 'showMyTask'])->name('my-tasks.show');
+        Route::post('my-tasks/{roastingRequest}/start', [RoastingRequestController::class, 'startTask'])->name('my-tasks.start');
+        Route::post('my-tasks/{roastingRequest}/complete', [RoastingRequestController::class, 'completeTask'])->name('my-tasks.complete');
     });
 
     Route::prefix('distribution')->name('distribution.')->group(function (): void {
@@ -83,13 +90,22 @@ Route::middleware('auth:sanctum')->group(function (): void {
             Route::get('shipments', [DistributionShipmentController::class, 'index'])->name('shipments.index');
             Route::post('shipments', [DistributionShipmentController::class, 'store'])->name('shipments.store');
             Route::get('shipments/{distributionShipment}', [DistributionShipmentController::class, 'show'])->name('shipments.show');
+            Route::match(['put', 'patch'], 'shipments/{distributionShipment}', [DistributionShipmentController::class, 'update'])->name('shipments.update');
+            Route::delete('shipments/{distributionShipment}', [DistributionShipmentController::class, 'destroy'])->name('shipments.destroy');
             Route::patch('shipments/{distributionShipment}/assign', [DistributionShipmentController::class, 'assignEmployee'])->name('shipments.assign');
             Route::patch('shipments/{distributionShipment}/status', [DistributionShipmentController::class, 'updateStatus'])->name('shipments.status');
         });
 
+        Route::middleware('role:inventory_employee')->group(function (): void {
+            Route::get('preparation-tasks', [DistributionShipmentController::class, 'preparationTasks'])->name('preparation-tasks.index');
+            Route::post('preparation-tasks/{distributionShipment}/prepare', [DistributionShipmentController::class, 'prepareForPickup'])->name('preparation-tasks.prepare');
+        });
+
         Route::middleware('role:distribution_employee')->group(function (): void {
             Route::get('my-shipments', [DistributionShipmentController::class, 'myShipments'])->name('my-shipments.index');
+            Route::get('my-shipments/{distributionShipment}', [DistributionShipmentController::class, 'showMyShipment'])->name('my-shipments.show');
             Route::post('my-shipments/{distributionShipment}/transfer', [DistributionShipmentController::class, 'markTransferred'])->name('my-shipments.transfer');
+            Route::post('my-shipments/{distributionShipment}/cancel-transfer', [DistributionShipmentController::class, 'cancelTransfer'])->name('my-shipments.cancel-transfer');
             Route::post('my-shipments/{distributionShipment}/deliver', [DistributionShipmentController::class, 'markDelivered'])->name('my-shipments.deliver');
         });
     });

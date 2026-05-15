@@ -26,6 +26,7 @@ class DistributionShipment extends Model
         'branch_id',
         'created_by',
         'assigned_to',
+        'inventory_assigned_to',
         'shipment_code',
         'status',
         'quantity',
@@ -60,6 +61,11 @@ class DistributionShipment extends Model
     public function assignedEmployee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function inventoryEmployee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'inventory_assigned_to');
     }
 
     public function branch(): BelongsTo
