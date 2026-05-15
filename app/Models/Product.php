@@ -8,6 +8,22 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Product extends Model
 {
+    public const CATEGORIES = [
+        'raw_coffee',
+        'roasted_coffee',
+        'ground_coffee',
+        'raw_nuts',
+        'roasted_nuts',
+        'seasoned_nuts',
+        'raw_product',
+        'processed_product',
+        'packaged_product',
+        'packaging_material',
+        'beverage',
+        'supply',
+        'other',
+    ];
+
     protected $fillable = [
         'branch_id',
         'name',

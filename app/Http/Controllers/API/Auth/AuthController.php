@@ -51,7 +51,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Employee registration request submitted successfully.',
+            'message' => 'تم إرسال طلب إنشاء الحساب بنجاح.',
             'data' => $result,
         ], 201);
     }
@@ -72,20 +72,20 @@ class AuthController extends Controller
         if (! Hash::check($credentials['password'], $user->password)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid credentials.',
+                'message' => 'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
             ], 422);
         }
 
         if (! $user->is_active || ! $user->role_id) {
             return response()->json([
                 'success' => false,
-                'message' => 'Your account is pending manager approval.',
+                'message' => 'حسابك غير مفعل بعد. يرجى انتظار موافقة الإدارة.',
             ], 403);
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'Logged in successfully.',
+            'message' => 'تم تسجيل الدخول بنجاح.',
             'data' => [
                 'token' => $user->createToken('mobile-app')->plainTextToken,
                 'token_type' => 'Bearer',
@@ -149,7 +149,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Password reset code verified successfully.',
+            'message' => 'تم التحقق من رمز استعادة كلمة المرور بنجاح.',
             'data' => null,
         ]);
     }
@@ -178,7 +178,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Password reset successfully.',
+            'message' => 'تم تغيير كلمة المرور بنجاح.',
             'data' => null,
         ]);
     }
@@ -189,7 +189,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Logged out successfully.',
+            'message' => 'تم تسجيل الخروج بنجاح.',
             'data' => null,
         ]);
     }
@@ -198,7 +198,7 @@ class AuthController extends Controller
     {
         return response()->json([
             'success' => true,
-            'message' => 'Authenticated user fetched successfully.',
+            'message' => 'تم جلب بيانات المستخدم بنجاح.',
             'data' => $request->user()?->load(['role', 'branch']),
         ]);
     }
@@ -219,7 +219,7 @@ class AuthController extends Controller
 
         if (! $resetCode) {
             throw ValidationException::withMessages([
-                'code' => ['The password reset code is invalid or expired.'],
+                'code' => ['رمز استعادة كلمة المرور غير صحيح أو منتهي الصلاحية.'],
             ]);
         }
 

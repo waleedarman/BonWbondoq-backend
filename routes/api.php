@@ -14,6 +14,9 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('register', [AuthController::class, 'register'])->name('auth.register');
 Route::post('login', [AuthController::class, 'login'])->name('auth.login');
+Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->name('auth.forgot-password');
+Route::post('verify-reset-code', [AuthController::class, 'verifyResetCode'])->name('auth.verify-reset-code');
+Route::post('reset-password', [AuthController::class, 'resetPassword'])->name('auth.reset-password');
 Route::get('branches', [BranchController::class, 'index'])->name('branches.index');
 
 Route::middleware('auth:sanctum')->group(function (): void {
@@ -79,6 +82,11 @@ Route::middleware('auth:sanctum')->group(function (): void {
     });
 
     Route::prefix('distribution')->name('distribution.')->group(function (): void {
+        Route::middleware('role:manager,inventory_employee')->group(function (): void {
+            Route::get('preparation-tasks', [DistributionShipmentController::class, 'preparationTasks'])->name('preparation-tasks.index');
+            Route::post('preparation-tasks/{distributionShipment}/prepare', [DistributionShipmentController::class, 'prepareForPickup'])->name('preparation-tasks.prepare');
+        });
+
         Route::middleware('role:manager')->group(function (): void {
             Route::get('shipments', [DistributionShipmentController::class, 'index'])->name('shipments.index');
             Route::post('shipments', [DistributionShipmentController::class, 'store'])->name('shipments.store');
@@ -89,7 +97,9 @@ Route::middleware('auth:sanctum')->group(function (): void {
 
         Route::middleware('role:distribution_employee')->group(function (): void {
             Route::get('my-shipments', [DistributionShipmentController::class, 'myShipments'])->name('my-shipments.index');
+            Route::get('my-shipments/{distributionShipment}', [DistributionShipmentController::class, 'showMyShipment'])->name('my-shipments.show');
             Route::post('my-shipments/{distributionShipment}/transfer', [DistributionShipmentController::class, 'markTransferred'])->name('my-shipments.transfer');
+            Route::post('my-shipments/{distributionShipment}/cancel-transfer', [DistributionShipmentController::class, 'cancelTransfer'])->name('my-shipments.cancel-transfer');
             Route::post('my-shipments/{distributionShipment}/deliver', [DistributionShipmentController::class, 'markDelivered'])->name('my-shipments.deliver');
         });
     });
