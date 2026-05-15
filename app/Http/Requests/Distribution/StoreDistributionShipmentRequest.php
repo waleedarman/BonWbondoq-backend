@@ -21,6 +21,7 @@ class StoreDistributionShipmentRequest extends FormRequest
             'recipient_name' => ['required', 'string', 'max:255'],
             'branch_id' => ['nullable', 'exists:branches,id'],
             'assigned_to' => ['nullable', 'exists:users,id'],
+            'inventory_assigned_to' => ['nullable', 'exists:users,id'],
             'status' => ['prohibited'],
             'created_by' => ['prohibited'],
             'prepared_at' => ['prohibited'],

@@ -36,7 +36,7 @@ class TestingInventoryController extends TestingBaseController
 
         return view('testing.inventory.index', [
             'products' => $products,
-            'categories' => ['raw_coffee', 'roasted_coffee', 'packaging_material', 'beverage', 'supply', 'other'],
+            'categories' => Product::CATEGORIES,
         ]);
     }
 
@@ -48,7 +48,7 @@ class TestingInventoryController extends TestingBaseController
 
         return view('testing.inventory.create', [
             'branches' => \App\Models\Branch::where('id', $this->currentBranchId())->where('is_active', true)->orderBy('name')->get(),
-            'categories' => ['raw_coffee', 'roasted_coffee', 'packaging_material', 'beverage', 'supply', 'other'],
+            'categories' => Product::CATEGORIES,
             'units' => ['kg', 'gram', 'piece', 'box', 'bottle', 'pack'],
         ]);
     }
@@ -62,7 +62,7 @@ class TestingInventoryController extends TestingBaseController
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'sku' => ['nullable', 'string', 'max:255', 'unique:products,sku'],
-            'category' => ['required', Rule::in(['raw_coffee', 'roasted_coffee', 'packaging_material', 'beverage', 'supply', 'other'])],
+            'category' => ['required', Rule::in(Product::CATEGORIES)],
             'unit' => ['required', Rule::in(['kg', 'gram', 'piece', 'box', 'bottle', 'pack'])],
             'quantity' => ['required', 'numeric', 'min:0'],
             'minimum_quantity' => ['required', 'numeric', 'min:0'],
