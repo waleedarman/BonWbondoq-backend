@@ -19,6 +19,10 @@ Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->name(
 Route::post('verify-reset-code', [AuthController::class, 'verifyResetCode'])->name('auth.verify-reset-code');
 Route::post('reset-password', [AuthController::class, 'resetPassword'])->name('auth.reset-password');
 Route::get('branches', [BranchController::class, 'index'])->name('branches.index');
+Route::middleware(['auth:sanctum', 'role:manager'])->group(function (): void {
+    Route::post('branches', [BranchController::class, 'store'])->name('branches.store');
+    Route::delete('branches/{branch}', [BranchController::class, 'destroy'])->name('branches.destroy');
+});
 
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('logout', [AuthController::class, 'logout'])->name('auth.logout');
@@ -42,7 +46,9 @@ Route::middleware('auth:sanctum')->group(function (): void {
 
         Route::prefix('users')->name('users.')->group(function (): void {
             Route::get('/', [UserManagementController::class, 'index'])->name('index');
+            Route::post('/', [UserManagementController::class, 'store'])->name('store');
             Route::get('{user}', [UserManagementController::class, 'show'])->name('show');
+            Route::put('{user}', [UserManagementController::class, 'update'])->name('update');
             Route::patch('{user}/assign-role', [UserManagementController::class, 'assignRole'])->name('assign-role');
             Route::patch('{user}/activate', [UserManagementController::class, 'activate'])->name('activate');
             Route::patch('{user}/deactivate', [UserManagementController::class, 'deactivate'])->name('deactivate');
@@ -60,6 +66,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
             Route::post('/', [ProductController::class, 'store'])->name('store');
             Route::get('{product}', [ProductController::class, 'show'])->name('show');
             Route::put('{product}', [ProductController::class, 'update'])->name('update');
+            Route::delete('{product}', [ProductController::class, 'destroy'])->name('destroy');
         });
 
         Route::prefix('movements')->name('movements.')->group(function (): void {

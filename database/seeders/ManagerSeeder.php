@@ -12,21 +12,35 @@ class ManagerSeeder extends Seeder
 {
     public function run(): void
     {
-        $managerRole = Role::where('slug', Role::MANAGER)->firstOrFail();
-        $branch = Branch::where('code', 'MAIN')->first();
+        $role = Role::firstOrCreate(
+            ['slug' => Role::MANAGER],
+            [
+                'name' => 'Manager',
+                'description' => 'System manager',
+            ],
+        );
+
+        $branch = Branch::firstOrCreate(
+            ['code' => 'MAIN'],
+            [
+                'name' => 'Main Branch',
+                'location' => 'Main',
+                'is_active' => true,
+            ],
+        );
 
         User::updateOrCreate(
-            ['email' => env('MANAGER_EMAIL', 'manager@example.com')],
+            ['email' => 'manager@example.com'],
             [
-                'name' => env('MANAGER_NAME', 'System Manager'),
-                'phone' => env('MANAGER_PHONE'),
-                'password' => Hash::make(env('MANAGER_PASSWORD', 'password')),
-                'role_id' => $managerRole->id,
-                'branch_id' => $branch?->id,
+                'name' => 'Manager',
+                'phone' => '0599000001',
+                'password' => Hash::make('password'),
+                'role_id' => $role->id,
+                'branch_id' => $branch->id,
                 'is_active' => true,
                 'approved_at' => now(),
                 'approved_by' => null,
-            ]
+            ],
         );
     }
 }

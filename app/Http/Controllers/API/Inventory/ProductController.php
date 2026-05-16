@@ -93,4 +93,16 @@ class ProductController extends Controller
             'data' => $product->fresh('branch'),
         ]);
     }
+
+    public function destroy(Product $product): JsonResponse
+    {
+        $this->abortUnlessCurrentBranch($product->branch_id);
+
+        $product->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Product deleted successfully.',
+        ]);
+    }
 }
